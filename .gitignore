@@ -1,0 +1,18 @@
+## .NET build output
+bin/
+obj/
+publish/
+installer-output/
+*.pdb
+
+## Rider/VS user-specific
+*.user
+.vs/
+.idea/
+
+## Inno Setup compiler temp
+Output/
+
+## OS cruft
+Thumbs.db
+desktop.ini
