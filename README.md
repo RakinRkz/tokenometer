@@ -2,19 +2,18 @@
 
 A Windows system tray app that shows your claude.ai usage (5-hour and weekly limits) as live, color-coded gauges — no browser tab required.
 
-## ⚠️ Before you use this
-
-Tokenometer works by capturing your claude.ai session and calling a **private, undocumented API endpoint** that powers the Settings → Usage page in the claude.ai web app. It is not an official integration, Anthropic could change or remove that endpoint at any time without notice, and doing this at any scale beyond personal use is not something this project encourages.
-
-Specifically, be aware that:
-
-- It logs in through an embedded browser window and stores the resulting session cookie locally (DPAPI-encrypted, tied to your Windows user account).
-- claude.ai sits behind a Cloudflare bot-management challenge that a plain HTTP client cannot pass. Tokenometer works around this by running the actual request *inside* the embedded browser engine (which already solved the challenge during login), not by calling the API directly.
-- This is fundamentally a personal, single-account tool for checking your own usage — not a general-purpose claude.ai API client.
-
-If any of that is a dealbreaker, this isn't the tool for you, and that's a reasonable conclusion to reach.
-
 ## Features
+How it looks:
+
+![System tray tokenometer ss1](<Screenshot 2026-08-11 153620.png>)
+
+When you hover on it:
+
+![System tray tokenometer ss2](<Screenshot 2026-08-11 153654.png>)
+
+When you click on it:
+
+![System tray tokenometer ss3](<Screenshot 2026-08-11 153727.png>)
 
 - Tray icon renders two concentric rings: inner = 5-hour usage, outer = weekly usage
 - Click the tray icon for a bigger popup view with reset times
