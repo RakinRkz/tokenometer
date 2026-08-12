@@ -92,8 +92,8 @@ Tests cover the pure logic — gauge color thresholds, the claude.ai response pa
 
 Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
-```
-"C:\Users\<you>\AppData\Local\Programs\Inno Setup 6\ISCC.exe" installer.iss
+```powershell
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
 This produces `installer-output\TokenometerSetup.exe`. Bump `MyAppVersion` in `installer.iss` before a release.

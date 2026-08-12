@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon></ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
