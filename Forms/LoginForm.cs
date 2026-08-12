@@ -17,14 +17,16 @@ internal sealed class LoginForm : Form
     private const string CookieDomain = "https://claude.ai";
     private const string SessionCookieName = "sessionKey";
 
+    private readonly ICookieStore _cookieStore;
     private readonly WebView2 _webView = new();
     private readonly System.Windows.Forms.Timer _cookiePollTimer = new() { Interval = 1000 };
     private int _pollTickCount;
 
     public string? CapturedCookieHeader { get; private set; }
 
-    public LoginForm()
+    public LoginForm(ICookieStore cookieStore)
     {
+        _cookieStore = cookieStore;
         Text = "Log in to Claude.ai";
         Width = 480;
         Height = 760;
@@ -105,7 +107,7 @@ internal sealed class LoginForm : Form
 
         _cookiePollTimer.Stop();
         CapturedCookieHeader = cookieHeader;
-        CookieStore.Save(cookieHeader);
+        _cookieStore.Save(cookieHeader);
         DialogResult = DialogResult.OK;
         Close();
     }

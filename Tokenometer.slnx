@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Tokenometer.csproj" />
+  <Project Path="Tokenometer.Tests/Tokenometer.Tests.csproj" />
+</Solution>

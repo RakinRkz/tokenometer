@@ -3,21 +3,26 @@ using System.Runtime.InteropServices;
 
 namespace Tokenometer;
 
+/// <summary>
+/// Pure GDI+ drawing — takes thresholds as a parameter rather than loading
+/// GaugeSettings itself, so rendering has no I/O and the color decision
+/// (GaugeColorSelector) can be tested independently of this class.
+/// </summary>
 internal static class GaugeRenderer
 {
     private const int TrayIconSize = 32;
 
-    public static Icon RenderTrayIcon(double sessionPercent, double weeklyPercent, bool isStale)
+    public static Icon RenderTrayIcon(double sessionPercent, double weeklyPercent, bool isStale, GaugeThresholds thresholds)
     {
-        GaugeThresholds thresholds = GaugeSettings.Load();
-
         using var bitmap = new Bitmap(TrayIconSize, TrayIconSize);
         using Graphics g = Graphics.FromImage(bitmap);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
 
-        DrawRing(g, new RectangleF(2, 2, 28, 28), weeklyPercent, 5f, isStale ? Color.Gray : GetColor(weeklyPercent, thresholds));
-        DrawRing(g, new RectangleF(8, 8, 16, 16), sessionPercent, 4f, isStale ? Color.DarkGray : GetColor(sessionPercent, thresholds));
+        DrawRing(g, new RectangleF(2, 2, 28, 28), weeklyPercent, 5f,
+            isStale ? Color.Gray : GaugeColorSelector.GetColor(weeklyPercent, thresholds));
+        DrawRing(g, new RectangleF(8, 8, 16, 16), sessionPercent, 4f,
+            isStale ? Color.DarkGray : GaugeColorSelector.GetColor(sessionPercent, thresholds));
 
         IntPtr hIcon = bitmap.GetHicon();
         try
@@ -31,7 +36,7 @@ internal static class GaugeRenderer
         }
     }
 
-    public static Bitmap RenderLargeGauge(int size, double percent, string label, bool isStale)
+    public static Bitmap RenderLargeGauge(int size, double percent, string label, bool isStale, GaugeThresholds thresholds)
     {
         var bitmap = new Bitmap(size, size);
         using Graphics g = Graphics.FromImage(bitmap);
@@ -40,7 +45,7 @@ internal static class GaugeRenderer
 
         float thickness = size * 0.12f;
         var bounds = new RectangleF(thickness / 2, thickness / 2, size - thickness, size - thickness);
-        Color color = isStale ? Color.Gray : GetColor(percent, GaugeSettings.Load());
+        Color color = isStale ? Color.Gray : GaugeColorSelector.GetColor(percent, thresholds);
         DrawRing(g, bounds, percent, thickness, color);
 
         string valueText = isStale ? "—" : $"{percent:0}%";
@@ -71,13 +76,6 @@ internal static class GaugeRenderer
         using var valuePen = new Pen(color, thickness) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         float sweep = (float)(360.0 * percent / 100.0);
         g.DrawArc(valuePen, bounds, -90, sweep);
-    }
-
-    private static Color GetColor(double percent, GaugeThresholds thresholds)
-    {
-        if (percent >= thresholds.RedAt) return Color.FromArgb(220, 53, 69);
-        if (percent >= thresholds.AmberAt) return Color.FromArgb(255, 193, 7);
-        return Color.FromArgb(40, 167, 69);
     }
 
     private static class NativeMethods

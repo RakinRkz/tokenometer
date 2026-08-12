@@ -47,14 +47,15 @@ internal sealed class GaugeSettingsForm : Form
         _cancelButton.Location = new Point(235, 160);
         _saveButton.Click += (_, _) =>
         {
-            if (_amberInput.Value >= _redInput.Value)
+            var candidate = new GaugeThresholds((double)_amberInput.Value, (double)_redInput.Value);
+            if (!GaugeThresholds.IsValid(candidate))
             {
                 MessageBox.Show(this, "The amber threshold must be lower than the red threshold.", "Tokenometer",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            Result = new GaugeThresholds((double)_amberInput.Value, (double)_redInput.Value);
+            Result = candidate;
             DialogResult = DialogResult.OK;
         };
 

@@ -14,4 +14,10 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The test project lives in a subfolder of this one; without this, the
+         default **/*.cs glob would compile its files into this project too. -->
+    <Compile Remove="Tokenometer.Tests\**" />
+  </ItemGroup>
+
 </Project>

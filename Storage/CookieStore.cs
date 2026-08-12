@@ -3,25 +3,25 @@ using System.Text;
 
 namespace Tokenometer;
 
-internal static class CookieStore
+internal sealed class CookieStore : ICookieStore
 {
-    private static readonly string FilePath = Path.Combine(
+    private readonly string _filePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Tokenometer", "session.dat");
 
-    public static void Save(string sessionCookieValue)
+    public void Save(string cookieHeader)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        byte[] plain = Encoding.UTF8.GetBytes(sessionCookieValue);
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+        byte[] plain = Encoding.UTF8.GetBytes(cookieHeader);
         byte[] encrypted = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
-        File.WriteAllBytes(FilePath, encrypted);
+        File.WriteAllBytes(_filePath, encrypted);
         // Never log the cookie value itself — only that a save happened and its length.
-        Logger.Log("CookieStore", $"Saved cookie header ({sessionCookieValue.Length} chars) to {FilePath}");
+        Logger.Log("CookieStore", $"Saved cookie header ({cookieHeader.Length} chars) to {_filePath}");
     }
 
-    public static string? Load()
+    public string? Load()
     {
-        if (!File.Exists(FilePath))
+        if (!File.Exists(_filePath))
         {
             Logger.Log("CookieStore", "Load: no session file present.");
             return null;
@@ -29,7 +29,7 @@ internal static class CookieStore
 
         try
         {
-            byte[] encrypted = File.ReadAllBytes(FilePath);
+            byte[] encrypted = File.ReadAllBytes(_filePath);
             byte[] plain = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
             string value = Encoding.UTF8.GetString(plain);
             Logger.Log("CookieStore", $"Load: decrypted cookie header ({value.Length} chars).");
@@ -43,11 +43,11 @@ internal static class CookieStore
         }
     }
 
-    public static void Clear()
+    public void Clear()
     {
-        if (File.Exists(FilePath))
+        if (File.Exists(_filePath))
         {
-            File.Delete(FilePath);
+            File.Delete(_filePath);
             Logger.Log("CookieStore", "Cleared session file.");
         }
     }

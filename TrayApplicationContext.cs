@@ -1,11 +1,19 @@
 namespace Tokenometer;
 
+/// <summary>
+/// Composition root: owns the concrete storage/fetcher implementations and wires
+/// them into UsageClient, then handles the tray icon/menu/popup UI on top.
+/// </summary>
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private const string Category = "Tray";
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(3);
 
-    private readonly UsageClient _usageClient = new();
+    private readonly ICookieStore _cookieStore = new CookieStore();
+    private readonly IOrganizationSettings _organizationSettings = new OrganizationSettings();
+    private readonly IGaugeSettings _gaugeSettings = new GaugeSettings();
+
+    private readonly UsageClient _usageClient;
     private readonly UsagePoller _poller;
     private readonly GaugePopupForm _popup = new();
     private readonly NotifyIcon _trayIcon;
@@ -15,6 +23,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext()
     {
+        _usageClient = new UsageClient(_cookieStore, _organizationSettings, new BrowserUsageFetcher());
         _poller = new UsagePoller(_usageClient, PollInterval);
         _poller.UsageUpdated += OnUsageUpdated;
         _poller.FetchFailed += OnFetchFailed;
@@ -41,7 +50,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _trayIcon = new NotifyIcon
         {
-            Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true),
+            Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true, _gaugeSettings.Load()),
             Text = "Tokenometer — fetching usage...",
             ContextMenuStrip = menu,
             Visible = true,
@@ -70,14 +79,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         Logger.Log(Category,
             $"UsageUpdated: session={snapshot.SessionPercent:0}%, weekly={snapshot.WeeklyPercent:0}%, authenticated={isAuthenticated}");
 
+        GaugeThresholds thresholds = _gaugeSettings.Load();
         _trayIcon.Icon?.Dispose();
-        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false);
+        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false, thresholds);
         _trayIcon.Text = isAuthenticated
             ? $"5-hour: {snapshot.SessionPercent:0}% · Weekly: {snapshot.WeeklyPercent:0}%"
             : $"[mock] 5-hour: {snapshot.SessionPercent:0}% · Weekly: {snapshot.WeeklyPercent:0}%";
 
         if (_popup.Visible)
-            _popup.UpdateSnapshot(snapshot, isAuthenticated);
+            _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
     }
 
     private void OnFetchFailed(object? sender, Exception ex)
@@ -85,28 +95,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _lastError = ex;
         Logger.Log(Category, $"FetchFailed: {ex.Message}");
 
+        GaugeThresholds thresholds = _gaugeSettings.Load();
         _trayIcon.Icon?.Dispose();
-        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true);
+        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true, thresholds);
         _trayIcon.Text = "Tokenometer — fetch failed, click for details";
 
         if (_popup.Visible)
-            _popup.ShowFetchError(ex);
+            _popup.ShowFetchError(ex, thresholds);
     }
 
     private void ShowPopup()
     {
         Logger.Log(Category, $"Popup opened. lastError={_lastError is not null}, hasSnapshot={_lastSnapshot is not null}");
+        GaugeThresholds thresholds = _gaugeSettings.Load();
         if (_lastError is { } error)
-            _popup.ShowFetchError(error);
+            _popup.ShowFetchError(error, thresholds);
         else if (_lastSnapshot is { } snapshot)
-            _popup.UpdateSnapshot(snapshot, _usageClient.IsAuthenticated);
+            _popup.UpdateSnapshot(snapshot, _usageClient.IsAuthenticated, thresholds);
         _popup.ShowNear(Cursor.Position);
     }
 
     private void ShowLogin()
     {
         Logger.Log(Category, "Opening LoginForm dialog.");
-        using var loginForm = new LoginForm();
+        using var loginForm = new LoginForm(_cookieStore);
         DialogResult result = loginForm.ShowDialog();
         Logger.Log(Category, $"LoginForm closed with result={result}.");
         if (result == DialogResult.OK)
@@ -116,7 +128,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private async void LogOut()
     {
         Logger.Log(Category, "Logging out — clearing stored cookie and browser session.");
-        CookieStore.Clear();
+        _cookieStore.Clear();
         try
         {
             await _usageClient.ClearBrowserSessionAsync();
@@ -134,37 +146,39 @@ internal sealed class TrayApplicationContext : ApplicationContext
             "Set Organization ID",
             "Find this in DevTools: the usage request's URL looks like\n" +
             "/api/organizations/{id}/usage — paste the {id} part below.",
-            OrganizationSettings.Load() ?? "");
+            _organizationSettings.Load() ?? "");
 
         DialogResult result = prompt.ShowDialog();
         Logger.Log(Category, $"Set Organization ID dialog closed with result={result}.");
         if (result != DialogResult.OK || string.IsNullOrWhiteSpace(prompt.InputText))
             return;
 
-        OrganizationSettings.Save(prompt.InputText);
+        _organizationSettings.Save(prompt.InputText);
         _ = _poller.PollOnceAsync();
     }
 
     private void ShowGaugeSettings()
     {
-        using var form = new GaugeSettingsForm(GaugeSettings.Load());
+        using var form = new GaugeSettingsForm(_gaugeSettings.Load());
         DialogResult result = form.ShowDialog();
         Logger.Log(Category, $"Gauge Colors dialog closed with result={result}.");
         if (result != DialogResult.OK || form.Result is null)
             return;
 
-        GaugeSettings.Save(form.Result);
+        _gaugeSettings.Save(form.Result);
         RefreshGaugeDisplay();
     }
 
     private void RefreshGaugeDisplay()
     {
+        GaugeThresholds thresholds = _gaugeSettings.Load();
+
         if (_lastError is { } error)
         {
             _trayIcon.Icon?.Dispose();
-            _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true);
+            _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(0, 0, isStale: true, thresholds);
             if (_popup.Visible)
-                _popup.ShowFetchError(error);
+                _popup.ShowFetchError(error, thresholds);
             return;
         }
 
@@ -173,9 +187,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         bool isAuthenticated = _usageClient.IsAuthenticated;
         _trayIcon.Icon?.Dispose();
-        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false);
+        _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false, thresholds);
         if (_popup.Visible)
-            _popup.UpdateSnapshot(snapshot, isAuthenticated);
+            _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
     }
 
     private void ViewLog()

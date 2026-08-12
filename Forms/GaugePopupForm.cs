@@ -47,12 +47,12 @@ internal sealed class GaugePopupForm : Form
         Activate();
     }
 
-    public void UpdateSnapshot(UsageSnapshot snapshot, bool isAuthenticated)
+    public void UpdateSnapshot(UsageSnapshot snapshot, bool isAuthenticated, GaugeThresholds thresholds)
     {
         _sessionGauge.Image?.Dispose();
         _weeklyGauge.Image?.Dispose();
-        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.SessionPercent, "5-hour", isStale: false);
-        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.WeeklyPercent, "Weekly", isStale: false);
+        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.SessionPercent, "5-hour", isStale: false, thresholds);
+        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.WeeklyPercent, "Weekly", isStale: false, thresholds);
 
         _statusLabel.Text = isAuthenticated
             ? $"Updated {snapshot.FetchedAt:t}"
@@ -63,12 +63,12 @@ internal sealed class GaugePopupForm : Form
         _loginLink.Visible = !isAuthenticated;
     }
 
-    public void ShowFetchError(Exception ex)
+    public void ShowFetchError(Exception ex, GaugeThresholds thresholds)
     {
         _sessionGauge.Image?.Dispose();
         _weeklyGauge.Image?.Dispose();
-        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(140, 0, "5-hour", isStale: true);
-        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(140, 0, "Weekly", isStale: true);
+        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(140, 0, "5-hour", isStale: true, thresholds);
+        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(140, 0, "Weekly", isStale: true, thresholds);
         _statusLabel.Text = "Fetch failed";
         _resetLabel.Text = ex.Message;
         _loginLink.Visible = true;

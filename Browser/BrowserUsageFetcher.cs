@@ -12,7 +12,7 @@ namespace Tokenometer;
 /// *inside* that browser engine, so the request carries the same fingerprint and
 /// cookies that already passed the challenge during login.
 /// </summary>
-internal sealed class BrowserUsageFetcher : IDisposable
+internal sealed class BrowserUsageFetcher : IUsageFetcher
 {
     private const string Category = "BrowserUsageFetcher";
     private const string HomeUrl = "https://claude.ai/settings/usage";

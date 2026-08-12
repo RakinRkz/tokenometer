@@ -6,7 +6,7 @@ namespace Tokenometer;
 /// Fetches usage data from claude.ai's internal Settings -> Usage endpoint.
 /// This is not a documented, stable API — the URL shape and JSON fields were
 /// captured from DevTools and can change without notice. Requests go through
-/// <see cref="BrowserUsageFetcher"/> (an in-browser fetch()) rather than a bare
+/// an <see cref="IUsageFetcher"/> (an in-browser fetch()) rather than a bare
 /// HttpClient, since claude.ai sits behind a Cloudflare challenge that only a
 /// real browser engine can pass.
 /// </summary>
@@ -15,20 +15,29 @@ internal sealed class UsageClient : IDisposable
     private const string UsageUrlTemplate = "https://claude.ai/api/organizations/{0}/usage";
     private const string Category = "UsageClient";
 
-    private readonly BrowserUsageFetcher _fetcher = new();
+    private readonly ICookieStore _cookieStore;
+    private readonly IOrganizationSettings _organizationSettings;
+    private readonly IUsageFetcher _fetcher;
 
-    public bool IsAuthenticated => CookieStore.Load() is not null;
+    public UsageClient(ICookieStore cookieStore, IOrganizationSettings organizationSettings, IUsageFetcher fetcher)
+    {
+        _cookieStore = cookieStore;
+        _organizationSettings = organizationSettings;
+        _fetcher = fetcher;
+    }
+
+    public bool IsAuthenticated => _cookieStore.Load() is not null;
 
     public async Task<UsageSnapshot> GetUsageAsync(CancellationToken cancellationToken = default)
     {
-        string? sessionCookie = CookieStore.Load();
+        string? sessionCookie = _cookieStore.Load();
         if (sessionCookie is null)
         {
             Logger.Log(Category, "No session cookie stored — returning mock data.");
             return GetMockUsage();
         }
 
-        string? organizationId = OrganizationSettings.Load();
+        string? organizationId = _organizationSettings.Load();
         if (organizationId is null)
         {
             Logger.Log(Category, "No organization id stored — cannot build usage URL.");
@@ -65,20 +74,11 @@ internal sealed class UsageClient : IDisposable
 
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(body);
-            JsonElement root = doc.RootElement;
-
-            JsonElement fiveHour = root.GetProperty("five_hour");
-            JsonElement sevenDay = root.GetProperty("seven_day");
-
-            double sessionPercent = fiveHour.GetProperty("utilization").GetDouble();
-            double weeklyPercent = sevenDay.GetProperty("utilization").GetDouble();
-            DateTimeOffset? sessionResetsAt = TryGetDate(fiveHour, "resets_at");
-            DateTimeOffset? weeklyResetsAt = TryGetDate(sevenDay, "resets_at");
-
+            UsageSnapshot snapshot = UsageResponseParser.Parse(body, DateTimeOffset.Now);
             Logger.Log(Category,
-                $"Parsed OK: session={sessionPercent}% (resets {sessionResetsAt}), weekly={weeklyPercent}% (resets {weeklyResetsAt})");
-            return new UsageSnapshot(sessionPercent, weeklyPercent, sessionResetsAt, weeklyResetsAt, DateTimeOffset.Now);
+                $"Parsed OK: session={snapshot.SessionPercent}% (resets {snapshot.SessionResetsAt}), " +
+                $"weekly={snapshot.WeeklyPercent}% (resets {snapshot.WeeklyResetsAt})");
+            return snapshot;
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException)
         {
@@ -89,13 +89,6 @@ internal sealed class UsageClient : IDisposable
 
     public Task ClearBrowserSessionAsync(CancellationToken cancellationToken = default) =>
         _fetcher.ClearCookiesAsync(cancellationToken);
-
-    private static DateTimeOffset? TryGetDate(JsonElement parent, string propertyName)
-    {
-        if (!parent.TryGetProperty(propertyName, out JsonElement value) || value.ValueKind != JsonValueKind.String)
-            return null;
-        return DateTimeOffset.TryParse(value.GetString(), out DateTimeOffset result) ? result : null;
-    }
 
     private static readonly Random MockRandom = new();
 

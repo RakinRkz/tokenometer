@@ -4,36 +4,36 @@ namespace Tokenometer;
 /// The claude.ai usage endpoint is scoped by organization id, which is per-account
 /// and not a secret — stored as plain text, unlike the session cookie.
 /// </summary>
-internal static class OrganizationSettings
+internal sealed class OrganizationSettings : IOrganizationSettings
 {
-    private static readonly string FilePath = Path.Combine(
+    private readonly string _filePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Tokenometer", "organization-id.txt");
 
-    public static string? Load()
+    public string? Load()
     {
-        if (!File.Exists(FilePath))
+        if (!File.Exists(_filePath))
         {
             Logger.Log("OrganizationSettings", "Load: no organization-id file present.");
             return null;
         }
-        string value = File.ReadAllText(FilePath).Trim();
+        string value = File.ReadAllText(_filePath).Trim();
         Logger.Log("OrganizationSettings", value.Length == 0 ? "Load: file is empty." : $"Load: {value}");
         return value.Length == 0 ? null : value;
     }
 
-    public static void Save(string organizationId)
+    public void Save(string organizationId)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        File.WriteAllText(FilePath, organizationId.Trim());
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+        File.WriteAllText(_filePath, organizationId.Trim());
         Logger.Log("OrganizationSettings", $"Saved: {organizationId.Trim()}");
     }
 
-    public static void Clear()
+    public void Clear()
     {
-        if (File.Exists(FilePath))
+        if (File.Exists(_filePath))
         {
-            File.Delete(FilePath);
+            File.Delete(_filePath);
             Logger.Log("OrganizationSettings", "Cleared organization-id file.");
         }
     }
