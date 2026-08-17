@@ -19,9 +19,11 @@ internal static class GaugeRenderer
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
 
-        DrawRing(g, new RectangleF(2, 2, 28, 28), weeklyPercent, 5f,
+        // A stale icon draws empty rings rather than inverting, so "no data" never
+        // reads as a full ring of remaining budget.
+        DrawRing(g, new RectangleF(2, 2, 28, 28), isStale ? 0 : GaugeDisplay.ToDisplayPercent(weeklyPercent, thresholds.Invert), 5f,
             isStale ? Color.Gray : GaugeColorSelector.GetColor(weeklyPercent, thresholds));
-        DrawRing(g, new RectangleF(8, 8, 16, 16), sessionPercent, 4f,
+        DrawRing(g, new RectangleF(8, 8, 16, 16), isStale ? 0 : GaugeDisplay.ToDisplayPercent(sessionPercent, thresholds.Invert), 4f,
             isStale ? Color.DarkGray : GaugeColorSelector.GetColor(sessionPercent, thresholds));
 
         IntPtr hIcon = bitmap.GetHicon();
@@ -45,10 +47,13 @@ internal static class GaugeRenderer
 
         float thickness = size * 0.12f;
         var bounds = new RectangleF(thickness / 2, thickness / 2, size - thickness, size - thickness);
+        // Colour keys off the raw usage even when inverted: the ring means the same
+        // "how close to the limit am I" thing either way.
         Color color = isStale ? Color.Gray : GaugeColorSelector.GetColor(percent, thresholds);
-        DrawRing(g, bounds, percent, thickness, color);
+        double displayPercent = isStale ? 0 : GaugeDisplay.ToDisplayPercent(percent, thresholds.Invert);
+        DrawRing(g, bounds, displayPercent, thickness, color);
 
-        string valueText = isStale ? "—" : $"{percent:0}%";
+        string valueText = isStale ? "—" : $"{displayPercent:0}%";
         using var valueFont = new Font("Segoe UI", size * 0.16f, FontStyle.Bold);
         SizeF valueSize = g.MeasureString(valueText, valueFont);
         using var textBrush = new SolidBrush(Color.White);

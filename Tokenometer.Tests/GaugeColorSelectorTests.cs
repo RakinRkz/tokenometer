@@ -38,6 +38,16 @@ public class GaugeColorSelectorTests
         Assert.Equal(Red, GaugeColorSelector.GetColor(percent, Thresholds));
     }
 
+    [Theory]
+    [InlineData(10, /* green */ 40, 167, 69)]
+    [InlineData(95, /* red   */ 220, 53, 69)]
+    public void InvertedGauges_StillColorByUsageNotByRemaining(double usedPercent, int r, int g, int b)
+    {
+        var inverted = new GaugeThresholds(AmberAt: 70, RedAt: 90, Invert: true);
+
+        Assert.Equal(Color.FromArgb(r, g, b), GaugeColorSelector.GetColor(usedPercent, inverted));
+    }
+
     [Fact]
     public void CustomThresholds_AreRespectedInsteadOfDefaults()
     {

@@ -29,6 +29,7 @@ internal sealed class GaugeSettings : IGaugeSettings
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         File.WriteAllText(_filePath, JsonSerializer.Serialize(thresholds));
-        Logger.Log("GaugeSettings", $"Saved: amberAt={thresholds.AmberAt}, redAt={thresholds.RedAt}");
+        Logger.Log("GaugeSettings",
+            $"Saved: amberAt={thresholds.AmberAt}, redAt={thresholds.RedAt}, invert={thresholds.Invert}");
     }
 }

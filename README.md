@@ -18,6 +18,7 @@ When you click on it:
 - Tray icon renders two concentric rings: inner = 5-hour usage, outer = weekly usage
 - Click the tray icon for a bigger popup view with reset times
 - Colors shift green → amber → red as usage climbs, with configurable thresholds
+- Optionally invert the gauges to count down what's left instead of up what's used
 - One-time login (embedded browser, auto-captures the session — no copy/pasting cookies)
 - Session persists across restarts; you only see the login window again once it actually expires
 - Detailed local logging for troubleshooting
@@ -48,7 +49,7 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 | Log in to claude.ai... | Opens the embedded login window; also auto-detects your organization id |
 | Log out | Clears the stored session (both the saved cookie and the embedded browser's own cookies) |
 | Set Organization ID... | Manual fallback if auto-detection ever fails — see First-time setup above |
-| Gauge Colors... | Change the amber/red usage thresholds (default 70% / 90%) |
+| Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
 | Check now | Force an immediate refresh instead of waiting for the next poll |
 | View log... | Opens the log file for troubleshooting |
 | Exit | Quits the app |
@@ -61,7 +62,7 @@ Everything is stored under `%AppData%\Tokenometer\`:
 |---|---|
 | `session.dat` | Your claude.ai session cookie, DPAPI-encrypted |
 | `organization-id.txt` | The organization id you set above (not a secret) |
-| `gauge-settings.json` | Your color threshold preferences |
+| `gauge-settings.json` | Your color threshold and gauge-direction preferences |
 | `log.txt` / `log.old.txt` | Diagnostic logs (rotated at 5MB), never contains the cookie value itself |
 | `WebView2\` | The embedded browser's profile (cookies, cache) |
 
@@ -116,7 +117,7 @@ Tokenometer/
   Forms/                        LoginForm, GaugePopupForm, GaugeSettingsForm, PromptForm
   Usage/                        UsageClient, UsagePoller, UsageResponseParser, IUsageFetcher
   Browser/                      BrowserUsageFetcher, SharedBrowserEnvironment (the hidden WebView2 host)
-  Rendering/                    GaugeRenderer (GDI+), GaugeColorSelector, GaugeThresholds
+  Rendering/                    GaugeRenderer (GDI+), GaugeColorSelector, GaugeDisplay, GaugeThresholds
   Storage/                      CookieStore, OrganizationSettings, GaugeSettings + their interfaces
   Logging/                      Logger
 Tokenometer.Tests/               xUnit tests + fakes for the above interfaces
@@ -124,4 +125,6 @@ Tokenometer.Tests/               xUnit tests + fakes for the above interfaces
 
 `UsageClient` doesn't reach for `CookieStore`/`OrganizationSettings`/`BrowserUsageFetcher` directly — it takes `ICookieStore`, `IOrganizationSettings`, and `IUsageFetcher` through its constructor. `TrayApplicationContext` is the only place that wires the real implementations together, which is what lets `UsageClientTests` exercise the actual fetch/parse/error-handling logic against fakes instead of a live browser and network.
 
-Response parsing (`UsageResponseParser`) and the color-threshold decision (`GaugeColorSelector`) are both pure functions for the same reason — split out from the networking and GDI+ drawing code they used to live inside, specifically so they don't need a browser or a graphics context to test.
+Response parsing (`UsageResponseParser`), the color-threshold decision (`GaugeColorSelector`), and the used-vs-remaining decision (`GaugeDisplay`) are all pure functions for the same reason — split out from the networking and GDI+ drawing code they used to live inside, specifically so they don't need a browser or a graphics context to test.
+
+Note that inverting a gauge changes only the arc and the number, never the color: thresholds describe *usage*, so an almost-spent limit stays red whether it reads "95%" or "5% left". Feeding the inverted value into `GaugeColorSelector` would paint a brand-new session red, which is why the two decisions are kept apart.

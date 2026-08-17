@@ -51,8 +51,10 @@ internal sealed class GaugePopupForm : Form
     {
         _sessionGauge.Image?.Dispose();
         _weeklyGauge.Image?.Dispose();
-        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.SessionPercent, "5-hour", isStale: false, thresholds);
-        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(140, snapshot.WeeklyPercent, "Weekly", isStale: false, thresholds);
+        _sessionGauge.Image = GaugeRenderer.RenderLargeGauge(
+            140, snapshot.SessionPercent, GaugeDisplay.Caption("5-hour", thresholds.Invert), isStale: false, thresholds);
+        _weeklyGauge.Image = GaugeRenderer.RenderLargeGauge(
+            140, snapshot.WeeklyPercent, GaugeDisplay.Caption("Weekly", thresholds.Invert), isStale: false, thresholds);
 
         _statusLabel.Text = isAuthenticated
             ? $"Updated {snapshot.FetchedAt:t}"

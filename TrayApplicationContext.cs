@@ -33,7 +33,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var logoutItem = menu.Items.Add("Log out");
         menu.Items.Add(new ToolStripSeparator());
         var setOrgItem = menu.Items.Add("Set Organization ID...");
-        var gaugeColorsItem = menu.Items.Add("Gauge Colors...");
+        var gaugeColorsItem = menu.Items.Add("Gauge Display...");
         menu.Items.Add(new ToolStripSeparator());
         var checkNowItem = menu.Items.Add("Check now");
         var viewLogItem = menu.Items.Add("View log...");
@@ -43,7 +43,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         loginItem.Click += (_, _) => { Logger.Log(Category, "Menu: Log in clicked."); ShowLogin(); };
         logoutItem.Click += (_, _) => { Logger.Log(Category, "Menu: Log out clicked."); LogOut(); };
         setOrgItem.Click += (_, _) => { Logger.Log(Category, "Menu: Set Organization ID clicked."); ShowSetOrganizationId(); };
-        gaugeColorsItem.Click += (_, _) => { Logger.Log(Category, "Menu: Gauge Colors clicked."); ShowGaugeSettings(); };
+        gaugeColorsItem.Click += (_, _) => { Logger.Log(Category, "Menu: Gauge Display clicked."); ShowGaugeSettings(); };
         checkNowItem.Click += async (_, _) => { Logger.Log(Category, "Menu: Check now clicked."); await _poller.PollOnceAsync(); };
         viewLogItem.Click += (_, _) => ViewLog();
         exitItem.Click += (_, _) => { Logger.Log(Category, "Menu: Exit clicked."); ExitApplication(); };
@@ -82,12 +82,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         GaugeThresholds thresholds = _gaugeSettings.Load();
         _trayIcon.Icon?.Dispose();
         _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false, thresholds);
-        _trayIcon.Text = isAuthenticated
-            ? $"5-hour: {snapshot.SessionPercent:0}% · Weekly: {snapshot.WeeklyPercent:0}%"
-            : $"[mock] 5-hour: {snapshot.SessionPercent:0}% · Weekly: {snapshot.WeeklyPercent:0}%";
+        _trayIcon.Text = BuildTooltip(snapshot, isAuthenticated, thresholds);
 
         if (_popup.Visible)
             _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
+    }
+
+    private static string BuildTooltip(UsageSnapshot snapshot, bool isAuthenticated, GaugeThresholds thresholds)
+    {
+        double session = GaugeDisplay.ToDisplayPercent(snapshot.SessionPercent, thresholds.Invert);
+        double weekly = GaugeDisplay.ToDisplayPercent(snapshot.WeeklyPercent, thresholds.Invert);
+        string suffix = thresholds.Invert ? " left" : "";
+        string prefix = isAuthenticated ? "" : "[mock] ";
+        return $"{prefix}5-hour: {session:0}%{suffix} · Weekly: {weekly:0}%{suffix}";
     }
 
     private void OnFetchFailed(object? sender, Exception ex)
@@ -161,7 +168,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         using var form = new GaugeSettingsForm(_gaugeSettings.Load());
         DialogResult result = form.ShowDialog();
-        Logger.Log(Category, $"Gauge Colors dialog closed with result={result}.");
+        Logger.Log(Category, $"Gauge Display dialog closed with result={result}.");
         if (result != DialogResult.OK || form.Result is null)
             return;
 
@@ -188,6 +195,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         bool isAuthenticated = _usageClient.IsAuthenticated;
         _trayIcon.Icon?.Dispose();
         _trayIcon.Icon = GaugeRenderer.RenderTrayIcon(snapshot.SessionPercent, snapshot.WeeklyPercent, isStale: false, thresholds);
+        _trayIcon.Text = BuildTooltip(snapshot, isAuthenticated, thresholds);
         if (_popup.Visible)
             _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
     }
