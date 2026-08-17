@@ -57,8 +57,12 @@ internal sealed class GaugePopupForm : Form
         _statusLabel.Text = isAuthenticated
             ? $"Updated {snapshot.FetchedAt:t}"
             : $"Mock data — updated {snapshot.FetchedAt:t}";
+        // resetsAt comes from claude.ai as a UTC timestamp (e.g. "...+00:00");
+        // ToLocalTime() converts it to the user's clock before formatting —
+        // formatting a DateTimeOffset directly uses its own embedded offset,
+        // not the local one, which showed UTC time mislabeled as local.
         _resetLabel.Text = snapshot.SessionResetsAt is { } resetsAt
-            ? $"5-hour resets {resetsAt:t}"
+            ? $"5-hour resets {resetsAt.ToLocalTime():t}"
             : string.Empty;
         _loginLink.Visible = !isAuthenticated;
     }
