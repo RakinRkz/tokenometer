@@ -34,9 +34,10 @@ Requires the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotn
 
 ## First-time setup
 
-1. Right-click the tray icon → **Log in to claude.ai...** and sign in through the embedded window. It closes automatically once your session is captured.
-2. Right-click → **Set Organization ID...**. Open claude.ai in your regular browser, go to Settings → Usage, open DevTools (F12) → Network tab, and find the request to `/api/organizations/<id>/usage`. Paste the `<id>` portion in.
-3. That's it — the gauges start updating (polling every 3 minutes by default).
+1. Right-click the tray icon → **Log in to claude.ai...** and sign in through the embedded window. It closes automatically once your session is captured — your organization id is captured at the same time (from claude.ai's own `lastActiveOrg` cookie), no DevTools required.
+2. That's it — the gauges start updating (polling every 3 minutes by default).
+
+If the organization id ever fails to auto-detect (e.g. claude.ai renames that cookie), use **Set Organization ID...** in the tray menu as a manual fallback: open claude.ai in your regular browser, go to Settings → Usage, open DevTools (F12) → Network tab, and find the request to `/api/organizations/<id>/usage`.
 
 Until you log in, the app shows mock/random data so you can see what the gauges look like.
 
@@ -44,9 +45,9 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 
 | Item | What it does |
 |---|---|
-| Log in to claude.ai... | Opens the embedded login window |
+| Log in to claude.ai... | Opens the embedded login window; also auto-detects your organization id |
 | Log out | Clears the stored session (both the saved cookie and the embedded browser's own cookies) |
-| Set Organization ID... | One-time setup step described above |
+| Set Organization ID... | Manual fallback if auto-detection ever fails — see First-time setup above |
 | Gauge Colors... | Change the amber/red usage thresholds (default 70% / 90%) |
 | Check now | Force an immediate refresh instead of waiting for the next poll |
 | View log... | Opens the log file for troubleshooting |

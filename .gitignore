@@ -16,3 +16,6 @@ Output/
 ## OS cruft
 Thumbs.db
 desktop.ini
+
+## Claude Code session/tooling state (worktrees, etc.) — not project source
+.claude/

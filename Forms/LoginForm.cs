@@ -11,22 +11,25 @@ namespace Tokenometer;
 /// </summary>
 internal sealed class LoginForm : Form
 {
-    // Anthropic hasn't published this — verify the cookie name in DevTools
+    // Anthropic hasn't published either of these — verify in DevTools
     // (Application -> Cookies -> claude.ai) if capture stalls after a real login.
     private const string LoginUrl = "https://claude.ai/login";
     private const string CookieDomain = "https://claude.ai";
     private const string SessionCookieName = "sessionKey";
+    private const string ActiveOrganizationCookieName = "lastActiveOrg";
 
     private readonly ICookieStore _cookieStore;
+    private readonly IOrganizationSettings _organizationSettings;
     private readonly WebView2 _webView = new();
     private readonly System.Windows.Forms.Timer _cookiePollTimer = new() { Interval = 1000 };
     private int _pollTickCount;
 
     public string? CapturedCookieHeader { get; private set; }
 
-    public LoginForm(ICookieStore cookieStore)
+    public LoginForm(ICookieStore cookieStore, IOrganizationSettings organizationSettings)
     {
         _cookieStore = cookieStore;
+        _organizationSettings = organizationSettings;
         Text = "Log in to Claude.ai";
         Width = 480;
         Height = 760;
@@ -85,7 +88,8 @@ internal sealed class LoginForm : Form
         if (_webView.CoreWebView2 is null)
             return;
 
-        List<CoreWebView2Cookie> cookies = await _webView.CoreWebView2.CookieManager.GetCookiesAsync(CookieDomain);
+        List<CoreWebView2Cookie> rawCookies = await _webView.CoreWebView2.CookieManager.GetCookiesAsync(CookieDomain);
+        var cookies = rawCookies.Select(c => (c.Name, c.Value)).ToList();
 
         // Log a heartbeat every ~10s so we can see the poll is alive without spamming every tick.
         if (_pollTickCount % 10 == 0)
@@ -95,12 +99,10 @@ internal sealed class LoginForm : Form
                 string.Join(",", cookies.Select(c => c.Name)));
         }
 
-        if (!cookies.Any(c => c.Name == SessionCookieName && !string.IsNullOrEmpty(c.Value)))
+        if (!CookieHeaderBuilder.Contains(cookies, SessionCookieName))
             return;
 
-        // Forward every cookie the browser has for the domain, not just sessionKey —
-        // the API may depend on CSRF/device cookies set alongside it during login.
-        string cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+        string cookieHeader = CookieHeaderBuilder.BuildHeader(cookies);
         Logger.Log("LoginForm",
             $"{SessionCookieName} found after {_pollTickCount} polls — captured {cookies.Count} cookies: " +
             string.Join(",", cookies.Select(c => c.Name)));
@@ -108,6 +110,21 @@ internal sealed class LoginForm : Form
         _cookiePollTimer.Stop();
         CapturedCookieHeader = cookieHeader;
         _cookieStore.Save(cookieHeader);
+
+        // claude.ai sets this to the active organization's id during login — use it
+        // instead of requiring a manual DevTools lookup. Falls back to whatever's
+        // already stored (or unset) if the cookie is ever renamed or missing.
+        string? organizationId = CookieHeaderBuilder.FindValue(cookies, ActiveOrganizationCookieName);
+        if (organizationId is not null)
+        {
+            _organizationSettings.Save(organizationId);
+            Logger.Log("LoginForm", $"Auto-detected organization id from {ActiveOrganizationCookieName} cookie: {organizationId}");
+        }
+        else
+        {
+            Logger.Log("LoginForm", $"No {ActiveOrganizationCookieName} cookie found — organization id not auto-detected.");
+        }
+
         DialogResult = DialogResult.OK;
         Close();
     }

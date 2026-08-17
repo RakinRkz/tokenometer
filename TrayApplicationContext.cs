@@ -118,7 +118,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void ShowLogin()
     {
         Logger.Log(Category, "Opening LoginForm dialog.");
-        using var loginForm = new LoginForm(_cookieStore);
+        using var loginForm = new LoginForm(_cookieStore, _organizationSettings);
         DialogResult result = loginForm.ShowDialog();
         Logger.Log(Category, $"LoginForm closed with result={result}.");
         if (result == DialogResult.OK)
