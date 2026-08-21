@@ -30,6 +30,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "startup"; Description: "Launch {#MyAppName} automatically when I sign in"; GroupDescription: "Additional options:"; Flags: checkedonce
 
+[InstallDelete]
+; Inno only adds and overwrites — a file that has left the package stays on disk
+; from the previous install. These two shipped up to 0.2.0, when the WebView2 WPF
+; assembly was still referenced; nothing loads them now.
+Type: files; Name: "{app}\Microsoft.Web.WebView2.Wpf.dll"
+Type: files; Name: "{app}\Microsoft.Web.WebView2.Wpf.xml"
+
 [Files]
 Source: "publish\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
