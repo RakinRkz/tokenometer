@@ -29,23 +29,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _poller.FetchFailed += OnFetchFailed;
 
         var menu = new ContextMenuStrip();
-        var loginItem = menu.Items.Add("Log in to claude.ai...");
-        var logoutItem = menu.Items.Add("Log out");
-        menu.Items.Add(new ToolStripSeparator());
-        var setOrgItem = menu.Items.Add("Set Organization ID...");
-        var gaugeColorsItem = menu.Items.Add("Gauge Display...");
-        menu.Items.Add(new ToolStripSeparator());
         var checkNowItem = menu.Items.Add("Check now");
-        var viewLogItem = menu.Items.Add("View log...");
+        menu.Items.Add(new ToolStripSeparator());
+        var settingsItem = menu.Items.Add("Settings...");
         menu.Items.Add(new ToolStripSeparator());
         var exitItem = menu.Items.Add("Exit");
 
-        loginItem.Click += (_, _) => { Logger.Log(Category, "Menu: Log in clicked."); ShowLogin(); };
-        logoutItem.Click += (_, _) => { Logger.Log(Category, "Menu: Log out clicked."); LogOut(); };
-        setOrgItem.Click += (_, _) => { Logger.Log(Category, "Menu: Set Organization ID clicked."); ShowSetOrganizationId(); };
-        gaugeColorsItem.Click += (_, _) => { Logger.Log(Category, "Menu: Gauge Display clicked."); ShowGaugeSettings(); };
         checkNowItem.Click += async (_, _) => { Logger.Log(Category, "Menu: Check now clicked."); await _poller.PollOnceAsync(); };
-        viewLogItem.Click += (_, _) => ViewLog();
+        settingsItem.Click += (_, _) => { Logger.Log(Category, "Menu: Settings clicked."); ShowSettings(); };
         exitItem.Click += (_, _) => { Logger.Log(Category, "Menu: Exit clicked."); ExitApplication(); };
 
         _trayIcon = new NotifyIcon
@@ -122,6 +113,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _popup.ShowNear(Cursor.Position);
     }
 
+    private void ShowSettings()
+    {
+        Logger.Log(Category, "Opening SettingsForm.");
+        using var settingsForm = new SettingsForm(
+            onLogin: ShowLogin,
+            onLogout: LogOut,
+            onGaugeDisplay: ShowGaugeSettings,
+            onViewLog: ViewLog);
+        settingsForm.ShowDialog();
+        Logger.Log(Category, "SettingsForm closed.");
+    }
+
     private void ShowLogin()
     {
         Logger.Log(Category, "Opening LoginForm dialog.");
@@ -144,23 +147,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Logger.Log(Category, $"Failed to clear browser session: {ex}");
         }
-        _ = _poller.PollOnceAsync();
-    }
-
-    private void ShowSetOrganizationId()
-    {
-        using var prompt = new PromptForm(
-            "Set Organization ID",
-            "Find this in DevTools: the usage request's URL looks like\n" +
-            "/api/organizations/{id}/usage — paste the {id} part below.",
-            _organizationSettings.Load() ?? "");
-
-        DialogResult result = prompt.ShowDialog();
-        Logger.Log(Category, $"Set Organization ID dialog closed with result={result}.");
-        if (result != DialogResult.OK || string.IsNullOrWhiteSpace(prompt.InputText))
-            return;
-
-        _organizationSettings.Save(prompt.InputText);
         _ = _poller.PollOnceAsync();
     }
 

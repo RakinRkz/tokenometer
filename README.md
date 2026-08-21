@@ -35,10 +35,10 @@ Requires the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotn
 
 ## First-time setup
 
-1. Right-click the tray icon → **Log in to claude.ai...** and sign in through the embedded window. It closes automatically once your session is captured — your organization id is captured at the same time (from claude.ai's own `lastActiveOrg` cookie), no DevTools required.
+1. Right-click the tray icon → **Settings...** → **Log in to claude.ai...** and sign in through the embedded window. It closes automatically once your session is captured — your organization id is captured at the same time (from claude.ai's own `lastActiveOrg` cookie), no DevTools required.
 2. That's it — the gauges start updating (polling every 3 minutes by default).
 
-If the organization id ever fails to auto-detect (e.g. claude.ai renames that cookie), use **Set Organization ID...** in the tray menu as a manual fallback: open claude.ai in your regular browser, go to Settings → Usage, open DevTools (F12) → Network tab, and find the request to `/api/organizations/<id>/usage`.
+There's no manual override for the organization id — if claude.ai ever renames the `lastActiveOrg` cookie and auto-detection breaks, logging out and back in is the way to retry it (see Troubleshooting below).
 
 Until you log in, the app shows mock/random data so you can see what the gauges look like.
 
@@ -46,13 +46,18 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 
 | Item | What it does |
 |---|---|
+| Check now | Force an immediate refresh instead of waiting for the next poll |
+| Settings... | Opens the settings window (below) |
+| Exit | Quits the app |
+
+### Settings window
+
+| Item | What it does |
+|---|---|
 | Log in to claude.ai... | Opens the embedded login window; also auto-detects your organization id |
 | Log out | Clears the stored session (both the saved cookie and the embedded browser's own cookies) |
-| Set Organization ID... | Manual fallback if auto-detection ever fails — see First-time setup above |
 | Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
-| Check now | Force an immediate refresh instead of waiting for the next poll |
 | View log... | Opens the log file for troubleshooting |
-| Exit | Quits the app |
 
 ## Where your data lives
 
@@ -61,7 +66,7 @@ Everything is stored under `%AppData%\Tokenometer\`:
 | File | Contents |
 |---|---|
 | `session.dat` | Your claude.ai session cookie, DPAPI-encrypted |
-| `organization-id.txt` | The organization id you set above (not a secret) |
+| `organization-id.txt` | The organization id, auto-detected during login (not a secret) |
 | `gauge-settings.json` | Your color threshold and gauge-direction preferences |
 | `log.txt` / `log.old.txt` | Diagnostic logs (rotated at 5MB), never contains the cookie value itself |
 | `WebView2\` | The embedded browser's profile (cookies, cache) |
@@ -104,9 +109,9 @@ This produces `installer-output\TokenometerSetup.exe`. Bump `MyAppVersion` in `i
 
 Start with **View log...** in the tray menu — it logs every fetch attempt, HTTP status, and timing. Common issues:
 
-- **"Organization ID not set"** — see First-time setup above.
+- **"Organization ID not set"** — auto-detection didn't run yet or failed; log out and back in via Settings to retry it.
 - **HTTP error / Cloudflare challenge page in the log** — claude.ai's private endpoint or protection may have changed; this project may need updating.
-- **Login window closes instantly without asking you to log in** — this is expected if your session is still valid from a previous login (the embedded browser profile persists). Use "Log out" first if you need to force a fresh login.
+- **Login window closes instantly without asking you to log in** — this is expected if your session is still valid from a previous login (the embedded browser profile persists). Use Settings → "Log out" first if you need to force a fresh login.
 
 ## Architecture, briefly
 
@@ -114,7 +119,7 @@ Start with **View log...** in the tray menu — it logs every fetch attempt, HTT
 Tokenometer/
   Program.cs                    entry point
   TrayApplicationContext.cs     composition root — tray icon, menu, wiring
-  Forms/                        LoginForm, GaugePopupForm, GaugeSettingsForm, PromptForm
+  Forms/                        LoginForm, GaugePopupForm, GaugeSettingsForm, SettingsForm
   Usage/                        UsageClient, UsagePoller, UsageResponseParser, IUsageFetcher
   Browser/                      BrowserUsageFetcher, SharedBrowserEnvironment (the hidden WebView2 host)
   Rendering/                    GaugeRenderer (GDI+), GaugeColorSelector, GaugeDisplay, GaugeThresholds

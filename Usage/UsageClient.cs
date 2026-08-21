@@ -42,8 +42,8 @@ internal sealed class UsageClient : IDisposable
         {
             Logger.Log(Category, "No organization id stored — cannot build usage URL.");
             throw new UsageFetchException(
-                "Organization ID not set — use \"Set Organization ID...\" in the tray menu " +
-                "(find it in the usage request's URL in DevTools: /organizations/{id}/usage).");
+                "Organization ID not set — it's normally captured automatically from " +
+                "Settings > Log in to claude.ai. Try logging out and back in.");
         }
 
         string usageUrl = string.Format(UsageUrlTemplate, organizationId);
