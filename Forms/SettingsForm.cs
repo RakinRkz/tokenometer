@@ -37,8 +37,8 @@ internal sealed class SettingsForm : Form
         };
         var verboseHint = new Label
         {
-            Text = "Records every poll, not just errors. On by default. Unticking keeps "
-                   + "startup, logins and failures but drops the per-poll detail.",
+            Text = "Off by default. Only turn this on if you're troubleshooting a problem — "
+                   + "typically because whoever is helping you asked to see a detailed log.",
             AutoSize = true,
             MaximumSize = new Size(250, 0),
             ForeColor = SystemColors.GrayText,
@@ -53,7 +53,34 @@ internal sealed class SettingsForm : Form
         gaugeDisplayButton.Click += (_, _) => onGaugeDisplay(this);
         viewLogButton.Click += (_, _) => onViewLog(this);
         // Applied immediately rather than on close, so the very next poll is captured.
-        verboseCheck.CheckedChanged += (_, _) => onVerboseLoggingChanged(verboseCheck.Checked);
+        // Turning it on is confirmed first — it records request URLs, response sizes
+        // and timing every three minutes, which is more than someone ticking a box
+        // in passing is likely to expect. Turning it back off needs no confirmation.
+        verboseCheck.CheckedChanged += (_, _) =>
+        {
+            if (verboseCheck.Checked)
+            {
+                DialogResult confirm = MessageBox.Show(
+                    this,
+                    "Verbose logging records the details of every check — request URLs, response "
+                        + "sizes and timing — every few minutes, not just failures.\n\n"
+                        + "This is meant for troubleshooting a specific problem, usually at the request "
+                        + "of whoever is helping you look into it. Turn it off again once you're done.\n\n"
+                        + "Turn on verbose logging?",
+                    "Tokenometer",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+
+                if (confirm != DialogResult.Yes)
+                {
+                    verboseCheck.Checked = false; // re-enters this handler with Checked=false, then returns here
+                    return;
+                }
+            }
+
+            onVerboseLoggingChanged(verboseCheck.Checked);
+        };
 
         CancelButton = closeButton;
 

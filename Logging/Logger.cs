@@ -2,7 +2,7 @@ namespace Tokenometer;
 
 internal enum LogLevel
 {
-    /// <summary>Per-poll mechanics. On by default; dropped when verbose logging is unticked.</summary>
+    /// <summary>Per-poll mechanics. Off unless verbose logging is switched on.</summary>
     Debug,
 
     /// <summary>Things that happen once, or once per user action: startup, login, logout, settings changes.</summary>
@@ -19,15 +19,16 @@ internal enum LogLevel
 /// Writes to a single rolling file under %AppData%. Everything at
 /// <see cref="MinimumLevel"/> and above is written; the rest is dropped.
 ///
-/// The default is Debug: this is a personal diagnostic tool for an undocumented
-/// endpoint that can change without notice, and when it breaks the per-poll detail
-/// is the whole reason the log exists. That costs roughly 300 KB a day — ten lines
-/// every three minutes — which the 5 MB rotation caps at about five weeks of history
-/// across log.txt and log.old.txt.
+/// The default is Info: a healthy poll used to write ten lines every three minutes
+/// (~300 KB/day, 35,000 lines in eleven days of real use) which buried the failures
+/// the log exists to surface. Errors, warnings and lifecycle events are always
+/// recorded, so an installed copy stays diagnosable with nothing turned on.
 ///
-/// Unticking "Verbose logging" in Settings raises the floor to Info, which drops the
-/// per-poll lines and keeps startup, logins, logouts, settings changes and every
-/// failure. Nothing turns errors off.
+/// Ticking "Verbose logging" in Settings lowers the floor to Debug for the per-poll
+/// detail — request URLs, response sizes, fetch timing. That is meant for the moment
+/// something is actually being troubleshot, typically at another person's request,
+/// which is why SettingsForm confirms before turning it on rather than tucking it
+/// behind a plain checkbox.
 /// </summary>
 internal static class Logger
 {
@@ -60,7 +61,7 @@ internal static class Logger
     /// Lines below this are discarded. Assignable at any time so the Settings
     /// checkbox takes effect immediately rather than at the next restart.
     /// </summary>
-    public static volatile LogLevel MinimumLevel = LogLevel.Debug;
+    public static volatile LogLevel MinimumLevel = LogLevel.Info;
 
     public static void Debug(string category, string message) => Write(LogLevel.Debug, category, message);
 

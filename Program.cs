@@ -16,10 +16,9 @@ static class Program
             return;
         }
 
-        // Before the first log line, so the very first startup entry already obeys
-        // the stored choice. Verbose is the default, so this only ever quietens.
-        if (!new LogSettings().Verbose)
-            Logger.MinimumLevel = LogLevel.Info;
+        // Before the first log line, so a verbose session captures startup too.
+        if (new LogSettings().Verbose)
+            Logger.MinimumLevel = LogLevel.Debug;
 
         Application.ThreadException += (_, e) =>
             Logger.Error("Program", $"Unhandled UI thread exception: {e.Exception}");

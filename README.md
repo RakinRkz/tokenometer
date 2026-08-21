@@ -60,7 +60,7 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 | Log out | Clears the sign-in marker, the embedded browser's own cookies, and the auto-detected organization id |
 | Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
 | View log... | Opens the log file for troubleshooting |
-| Verbose logging | Records every poll, not just errors. On by default; untick it to keep only startup, logins and failures |
+| Verbose logging | Records every poll, not just errors. Off by default; ticking it asks for confirmation, since it's meant for active troubleshooting rather than everyday use |
 
 ## Where your data lives
 
@@ -115,7 +115,7 @@ Note that `installer.iss` reads the version out of `publish\Tokenometer.exe`, so
 
 ## Troubleshooting
 
-Start with **View log...** in the tray menu. By default it records every fetch attempt, HTTP status and timing, which is what you want when the endpoint changes under you. Untick **Verbose logging** in Settings to drop the per-poll detail and keep only startup, logins, logouts and failures. Either way the file rotates at 5MB into `log.old.txt`.
+Start with **View log...** in the tray menu — by default it records startup, logins, logouts and anything that failed, and a healthy poll writes nothing. If that's not enough to see what's going on, tick **Verbose logging** in Settings (it'll ask you to confirm), reproduce the problem, then untick it again — that adds a line for every fetch attempt, HTTP status and timing. Either way the file rotates at 5MB into `log.old.txt`.
 
 Common issues:
 

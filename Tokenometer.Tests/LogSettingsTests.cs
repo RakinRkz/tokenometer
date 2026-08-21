@@ -5,11 +5,11 @@ namespace Tokenometer.Tests;
 public class LogSettingsTests
 {
     [Fact]
-    public void DefaultsToVerboseWhenNothingIsStored()
+    public void DefaultsToQuietWhenNothingIsStored()
     {
         using var folder = new TempFolder();
 
-        Assert.True(new LogSettings(folder.Path).Verbose);
+        Assert.False(new LogSettings(folder.Path).Verbose);
     }
 
     [Theory]
@@ -25,25 +25,25 @@ public class LogSettingsTests
     }
 
     [Fact]
-    public void MalformedJson_FallsBackToVerboseRatherThanGoingQuiet()
+    public void MalformedJson_FallsBackToQuietRatherThanVerbose()
     {
         using var folder = new TempFolder();
         folder.Write("log-settings.json", "{ not json");
 
-        // Silently dropping to Info would lose exactly the detail someone is
-        // troubleshooting with, so an unreadable setting errs toward more logging.
-        Assert.True(new LogSettings(folder.Path).Verbose);
+        // An unreadable setting should not silently start recording detail nobody
+        // asked for, so it falls back to the same off state as a fresh install.
+        Assert.False(new LogSettings(folder.Path).Verbose);
     }
 
     [Fact]
-    public void QuietCanBeTurnedBackOn()
+    public void VerboseCanBeTurnedBackOff()
     {
         using var folder = new TempFolder();
         var settings = new LogSettings(folder.Path);
 
-        settings.SetVerbose(false);
         settings.SetVerbose(true);
+        settings.SetVerbose(false);
 
-        Assert.True(new LogSettings(folder.Path).Verbose);
+        Assert.False(new LogSettings(folder.Path).Verbose);
     }
 }

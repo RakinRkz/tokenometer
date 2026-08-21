@@ -4,12 +4,13 @@ namespace Tokenometer;
 
 /// <summary>
 /// Whether the log records per-poll detail (<see cref="LogLevel.Debug"/>) on top of
-/// errors, warnings and lifecycle events. On by default — see <see cref="Logger"/>
-/// for why.
+/// errors, warnings and lifecycle events. Off by default — see <see cref="Logger"/>
+/// for why. Meant to be switched on only while actively troubleshooting, which is
+/// why SettingsForm confirms before turning it on.
 ///
-/// Stored as JSON rather than a marker file: with verbose as the default, a bare
-/// marker would have to mean "not the default", which reads backwards from its own
-/// name. An explicit value survives the default changing again. The folder is
+/// Stored as JSON rather than a marker file so an unreadable setting has an
+/// unambiguous fallback to record in the log, rather than a marker's mere
+/// presence/absence silently meaning one thing or the other. The folder is
 /// injectable so this is testable without writing into the real %AppData%.
 /// </summary>
 internal sealed class LogSettings : ILogSettings
@@ -39,16 +40,18 @@ internal sealed class LogSettings : ILogSettings
         get
         {
             if (!File.Exists(_filePath))
-                return true;
+                return false;
 
             try
             {
-                return JsonSerializer.Deserialize<Stored>(File.ReadAllText(_filePath))?.Verbose ?? true;
+                return JsonSerializer.Deserialize<Stored>(File.ReadAllText(_filePath))?.Verbose ?? false;
             }
             catch (Exception ex) when (ex is JsonException or IOException)
             {
-                Logger.Warn(Category, $"Couldn't read logging setting, defaulting to verbose: {ex.Message}");
-                return true;
+                // Falling back to quiet rather than verbose: an unreadable setting
+                // should not silently start recording detail nobody asked for.
+                Logger.Warn(Category, $"Couldn't read logging setting, defaulting to off: {ex.Message}");
+                return false;
             }
         }
     }
