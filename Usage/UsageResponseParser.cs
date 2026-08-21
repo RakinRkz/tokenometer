@@ -16,15 +16,41 @@ internal static class UsageResponseParser
         using JsonDocument doc = JsonDocument.Parse(json);
         JsonElement root = doc.RootElement;
 
-        JsonElement fiveHour = root.GetProperty("five_hour");
-        JsonElement sevenDay = root.GetProperty("seven_day");
+        JsonElement fiveHour = GetLimitObject(root, "five_hour");
+        JsonElement sevenDay = GetLimitObject(root, "seven_day");
 
-        double sessionPercent = fiveHour.GetProperty("utilization").GetDouble();
-        double weeklyPercent = sevenDay.GetProperty("utilization").GetDouble();
+        double sessionPercent = GetUtilization(fiveHour, "five_hour");
+        double weeklyPercent = GetUtilization(sevenDay, "seven_day");
         DateTimeOffset? sessionResetsAt = TryGetDate(fiveHour, "resets_at");
         DateTimeOffset? weeklyResetsAt = TryGetDate(sevenDay, "resets_at");
 
         return new UsageSnapshot(sessionPercent, weeklyPercent, sessionResetsAt, weeklyResetsAt, fetchedAt);
+    }
+
+    /// <summary>
+    /// GetProperty throws KeyNotFoundException for an absent key, but a key that is
+    /// present and null hands back a Null element whose own GetProperty/GetDouble
+    /// then throw InvalidOperationException — which UsageClient does not translate,
+    /// so the "response shape changed" message would be bypassed entirely. Real
+    /// responses do carry null limit objects (seven_day_oauth_apps is null in every
+    /// capture so far), so a null five_hour is a plausible shape for an account
+    /// without that limit. Normalise it into the JsonException callers handle.
+    /// </summary>
+    private static JsonElement GetLimitObject(JsonElement parent, string propertyName)
+    {
+        JsonElement value = parent.GetProperty(propertyName);
+        if (value.ValueKind != JsonValueKind.Object)
+            throw new JsonException($"Expected '{propertyName}' to be an object, got {value.ValueKind}.");
+        return value;
+    }
+
+    private static double GetUtilization(JsonElement limit, string limitName)
+    {
+        if (!limit.TryGetProperty("utilization", out JsonElement value))
+            throw new KeyNotFoundException($"'{limitName}.utilization' is missing.");
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out double utilization))
+            throw new JsonException($"Expected '{limitName}.utilization' to be a number, got {value.ValueKind}.");
+        return utilization;
     }
 
     private static DateTimeOffset? TryGetDate(JsonElement parent, string propertyName)

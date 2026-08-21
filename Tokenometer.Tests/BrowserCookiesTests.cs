@@ -2,7 +2,7 @@ using Tokenometer;
 
 namespace Tokenometer.Tests;
 
-public class CookieHeaderBuilderTests
+public class BrowserCookiesTests
 {
     private static readonly (string Name, string Value)[] SampleCookies =
     [
@@ -12,23 +12,15 @@ public class CookieHeaderBuilderTests
     ];
 
     [Fact]
-    public void BuildHeader_JoinsEveryCookieNotJustTheSessionOne()
-    {
-        string header = CookieHeaderBuilder.BuildHeader(SampleCookies);
-
-        Assert.Equal("sessionKey=abc123; lastActiveOrg=d2980d4d-20ff-4343-9337-e27dcaadfe08; cf_clearance=xyz", header);
-    }
-
-    [Fact]
     public void Contains_FindsAMatchingNonEmptyCookie()
     {
-        Assert.True(CookieHeaderBuilder.Contains(SampleCookies, "sessionKey"));
+        Assert.True(BrowserCookies.Contains(SampleCookies, "sessionKey"));
     }
 
     [Fact]
     public void Contains_ReturnsFalseWhenAbsent()
     {
-        Assert.False(CookieHeaderBuilder.Contains(SampleCookies, "missingCookie"));
+        Assert.False(BrowserCookies.Contains(SampleCookies, "missingCookie"));
     }
 
     [Fact]
@@ -36,13 +28,13 @@ public class CookieHeaderBuilderTests
     {
         (string Name, string Value)[] cookies = [("sessionKey", "")];
 
-        Assert.False(CookieHeaderBuilder.Contains(cookies, "sessionKey"));
+        Assert.False(BrowserCookies.Contains(cookies, "sessionKey"));
     }
 
     [Fact]
     public void FindValue_ReturnsTheOrganizationIdFromTheActiveOrgCookie()
     {
-        string? value = CookieHeaderBuilder.FindValue(SampleCookies, "lastActiveOrg");
+        string? value = BrowserCookies.FindValue(SampleCookies, "lastActiveOrg");
 
         Assert.Equal("d2980d4d-20ff-4343-9337-e27dcaadfe08", value);
     }
@@ -50,7 +42,7 @@ public class CookieHeaderBuilderTests
     [Fact]
     public void FindValue_ReturnsNullWhenCookieIsAbsent()
     {
-        string? value = CookieHeaderBuilder.FindValue(SampleCookies, "notPresent");
+        string? value = BrowserCookies.FindValue(SampleCookies, "notPresent");
 
         Assert.Null(value);
     }
@@ -60,6 +52,6 @@ public class CookieHeaderBuilderTests
     {
         (string Name, string Value)[] cookies = [("lastActiveOrg", "")];
 
-        Assert.Null(CookieHeaderBuilder.FindValue(cookies, "lastActiveOrg"));
+        Assert.Null(BrowserCookies.FindValue(cookies, "lastActiveOrg"));
     }
 }

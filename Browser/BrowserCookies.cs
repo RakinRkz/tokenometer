@@ -1,19 +1,17 @@
 namespace Tokenometer;
 
 /// <summary>
-/// Pure operations over a browser's cookie list, kept separate from LoginForm's
+/// Pure queries over a browser's cookie list, kept separate from LoginForm's
 /// WebView2 plumbing so they're testable without a live browser control.
 /// </summary>
-internal static class CookieHeaderBuilder
+/// <remarks>
+/// This was CookieHeaderBuilder and also assembled a "Name=Value; ..." header for
+/// the session store. Nothing sent that header — the fetch runs inside the browser
+/// and carries the profile's own cookies — so it went when the stored cookie did.
+/// What remains is detection: has a session appeared, and which organization is it.
+/// </remarks>
+internal static class BrowserCookies
 {
-    /// <summary>
-    /// Builds a "Name=Value; Name=Value" header string forwarding every cookie —
-    /// the usage API may depend on CSRF/device cookies set alongside the session,
-    /// not just the session cookie itself.
-    /// </summary>
-    public static string BuildHeader(IEnumerable<(string Name, string Value)> cookies) =>
-        string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
-
     public static bool Contains(IEnumerable<(string Name, string Value)> cookies, string name) =>
         cookies.Any(c => c.Name == name && !string.IsNullOrEmpty(c.Value));
 

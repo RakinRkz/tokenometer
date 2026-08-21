@@ -1,0 +1,21 @@
+<Project>
+
+  <!-- The WebView2 package references its WPF assembly unconditionally for any
+       net5.0+ target (see build/Common.targets in the package), even in a
+       WinForms-only app. That assembly wants WindowsBase 5.0 while the WinForms
+       ref pack supplies 4.0, which produced 11 MSB3277 conflict warnings on
+       every build. Nothing here uses WPF, so drop the reference: the warnings go
+       away and Wpf.dll/.xml stop being copied to the output.
+
+       This lives in Directory.Build.targets rather than Tokenometer.csproj
+       because the package flows transitively to Tokenometer.Tests through the
+       project reference, so the test project hits the same conflict. It has to
+       be a target rather than a plain <Reference Remove/> because NuGet imports
+       the package's own targets after the project file is evaluated. -->
+  <Target Name="RemoveWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

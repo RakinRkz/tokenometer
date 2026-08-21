@@ -1,6 +1,11 @@
 #define MyAppName "Tokenometer"
-#define MyAppVersion "0.2.0"
 #define MyAppExeName "Tokenometer.exe"
+
+; The version is read out of the published exe rather than repeated here, so
+; <Version> in Tokenometer.csproj is the single place a release gets bumped.
+; This means `dotnet publish` must run before ISCC — if publish\ is missing,
+; the compile fails here instead of quietly shipping a stale version number.
+#define MyAppVersion GetVersionNumbersString("publish\" + MyAppExeName)
 
 [Setup]
 AppId={{E42D1456-CD03-4A78-B63C-2BF078D4882C}

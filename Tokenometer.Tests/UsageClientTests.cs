@@ -13,12 +13,12 @@ public class UsageClientTests
         """;
 
     [Fact]
-    public async Task NoCookieStored_ReturnsMockDataWithoutTouchingTheFetcher()
+    public async Task NotSignedIn_ReturnsMockDataWithoutTouchingTheFetcher()
     {
-        var cookieStore = new FakeCookieStore(initialCookie: null);
+        var signInState = new FakeSignInState(initiallySignedIn: false);
         var organizationSettings = new FakeOrganizationSettings("org-123");
         var fetcher = FakeUsageFetcher.Returning(ok: true, status: 200, body: ValidUsageJson);
-        var client = new UsageClient(cookieStore, organizationSettings, fetcher);
+        var client = new UsageClient(signInState, organizationSettings, fetcher);
 
         UsageSnapshot snapshot = await client.GetUsageAsync();
 
@@ -29,12 +29,12 @@ public class UsageClientTests
     }
 
     [Fact]
-    public async Task CookiePresentButNoOrganizationId_ThrowsWithActionableMessage()
+    public async Task SignedInButNoOrganizationId_ThrowsWithActionableMessage()
     {
-        var cookieStore = new FakeCookieStore("sessionKey=abc");
+        var signInState = new FakeSignInState(initiallySignedIn: true);
         var organizationSettings = new FakeOrganizationSettings(initialOrganizationId: null);
         var fetcher = FakeUsageFetcher.Returning(ok: true, status: 200, body: ValidUsageJson);
-        var client = new UsageClient(cookieStore, organizationSettings, fetcher);
+        var client = new UsageClient(signInState, organizationSettings, fetcher);
 
         UsageFetchException ex = await Assert.ThrowsAsync<UsageFetchException>(() => client.GetUsageAsync());
 
@@ -44,10 +44,10 @@ public class UsageClientTests
     [Fact]
     public async Task FetcherThrows_IsWrappedInUsageFetchException()
     {
-        var cookieStore = new FakeCookieStore("sessionKey=abc");
+        var signInState = new FakeSignInState(initiallySignedIn: true);
         var organizationSettings = new FakeOrganizationSettings("org-123");
         var fetcher = FakeUsageFetcher.Throwing(new InvalidOperationException("WebView2 not ready"));
-        var client = new UsageClient(cookieStore, organizationSettings, fetcher);
+        var client = new UsageClient(signInState, organizationSettings, fetcher);
 
         UsageFetchException ex = await Assert.ThrowsAsync<UsageFetchException>(() => client.GetUsageAsync());
 
@@ -57,10 +57,10 @@ public class UsageClientTests
     [Fact]
     public async Task FetcherReturnsNonOk_ThrowsWithStatusInMessage()
     {
-        var cookieStore = new FakeCookieStore("sessionKey=abc");
+        var signInState = new FakeSignInState(initiallySignedIn: true);
         var organizationSettings = new FakeOrganizationSettings("org-123");
         var fetcher = FakeUsageFetcher.Returning(ok: false, status: 403, body: "<html>Just a moment...</html>");
-        var client = new UsageClient(cookieStore, organizationSettings, fetcher);
+        var client = new UsageClient(signInState, organizationSettings, fetcher);
 
         UsageFetchException ex = await Assert.ThrowsAsync<UsageFetchException>(() => client.GetUsageAsync());
 
@@ -70,10 +70,10 @@ public class UsageClientTests
     [Fact]
     public async Task SuccessfulFetch_ReturnsParsedSnapshotAndRequestsTheCorrectUrl()
     {
-        var cookieStore = new FakeCookieStore("sessionKey=abc");
+        var signInState = new FakeSignInState(initiallySignedIn: true);
         var organizationSettings = new FakeOrganizationSettings("org-123");
         var fetcher = FakeUsageFetcher.Returning(ok: true, status: 200, body: ValidUsageJson);
-        var client = new UsageClient(cookieStore, organizationSettings, fetcher);
+        var client = new UsageClient(signInState, organizationSettings, fetcher);
 
         UsageSnapshot snapshot = await client.GetUsageAsync();
 
@@ -87,7 +87,7 @@ public class UsageClientTests
     public async Task ClearBrowserSessionAsync_DelegatesToFetcher()
     {
         var fetcher = FakeUsageFetcher.Returning(ok: true, status: 200, body: ValidUsageJson);
-        var client = new UsageClient(new FakeCookieStore(), new FakeOrganizationSettings(), fetcher);
+        var client = new UsageClient(new FakeSignInState(), new FakeOrganizationSettings(), fetcher);
 
         await client.ClearBrowserSessionAsync();
 
@@ -98,7 +98,7 @@ public class UsageClientTests
     public void Dispose_DisposesTheFetcher()
     {
         var fetcher = FakeUsageFetcher.Returning(ok: true, status: 200, body: ValidUsageJson);
-        var client = new UsageClient(new FakeCookieStore(), new FakeOrganizationSettings(), fetcher);
+        var client = new UsageClient(new FakeSignInState(), new FakeOrganizationSettings(), fetcher);
 
         client.Dispose();
 

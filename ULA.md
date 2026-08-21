@@ -4,7 +4,7 @@ Tokenometer works by capturing your claude.ai session and calling a **private, u
 
 Specifically, be aware that:
 
-- It logs in through an embedded browser window and stores the resulting session cookie locally (DPAPI-encrypted, tied to your Windows user account).
+- It logs in through an embedded browser window, and the resulting session is held in that browser's own profile under `%AppData%\Tokenometer\WebView2\` — the same place any browser keeps its cookies. Tokenometer does not keep a second copy of your session anywhere.
 - claude.ai sits behind a Cloudflare bot-management challenge that a plain HTTP client cannot pass. Tokenometer works around this by running the actual request *inside* the embedded browser engine (which already solved the challenge during login), not by calling the API directly.
 - This is fundamentally a personal, single-account tool for checking your own usage — not a general-purpose claude.ai API client.
 

@@ -6,7 +6,10 @@ internal sealed class GaugePopupForm : Form
     private readonly PictureBox _weeklyGauge = new() { Size = new Size(140, 140) };
     private readonly Label _statusLabel = new() { AutoSize = true, ForeColor = Color.Gainsboro };
     private readonly Label _resetLabel = new() { AutoSize = true, ForeColor = Color.Gainsboro };
-    private readonly LinkLabel _loginLink = new() { Text = "Log in to claude.ai...", AutoSize = true };
+    private const string LoginLinkText = "Log in to claude.ai...";
+    private const string RecheckLinkText = "Re-check login...";
+
+    private readonly LinkLabel _loginLink = new() { Text = LoginLinkText, AutoSize = true };
 
     public event EventHandler? LoginRequested;
 
@@ -66,6 +69,9 @@ internal sealed class GaugePopupForm : Form
         _resetLabel.Text = snapshot.SessionResetsAt is { } resetsAt
             ? $"5-hour resets {resetsAt.ToLocalTime():t}"
             : string.Empty;
+        // Reset the caption: ShowFetchError may have switched it to the re-check
+        // wording, and without this it stayed that way for the rest of the session.
+        _loginLink.Text = LoginLinkText;
         _loginLink.Visible = !isAuthenticated;
     }
 
@@ -78,7 +84,7 @@ internal sealed class GaugePopupForm : Form
         _statusLabel.Text = "Fetch failed";
         _resetLabel.Text = ex.Message;
         _loginLink.Visible = true;
-        _loginLink.Text = "Re-check login...";
+        _loginLink.Text = RecheckLinkText;
     }
 
     protected override void Dispose(bool disposing)

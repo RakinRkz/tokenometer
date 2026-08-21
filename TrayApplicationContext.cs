@@ -9,7 +9,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private const string Category = "Tray";
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(3);
 
-    private readonly ICookieStore _cookieStore = new CookieStore();
+    private readonly ISignInState _signInState = new SignInState();
     private readonly IOrganizationSettings _organizationSettings = new OrganizationSettings();
     private readonly IGaugeSettings _gaugeSettings = new GaugeSettings();
 
@@ -23,7 +23,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext()
     {
-        _usageClient = new UsageClient(_cookieStore, _organizationSettings, new BrowserUsageFetcher());
+        _usageClient = new UsageClient(_signInState, _organizationSettings, new BrowserUsageFetcher());
         _poller = new UsagePoller(_usageClient, PollInterval);
         _poller.UsageUpdated += OnUsageUpdated;
         _poller.FetchFailed += OnFetchFailed;
@@ -125,11 +125,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         Logger.Log(Category, "SettingsForm closed.");
     }
 
-    private void ShowLogin()
+    // owner is null when reached from the popup's login link, which has no window
+    // worth parenting to; SettingsForm passes itself.
+    private void ShowLogin(IWin32Window? owner = null)
     {
         Logger.Log(Category, "Opening LoginForm dialog.");
-        using var loginForm = new LoginForm(_cookieStore, _organizationSettings);
-        DialogResult result = loginForm.ShowDialog();
+        using var loginForm = new LoginForm(_signInState, _organizationSettings);
+        DialogResult result = loginForm.ShowDialog(owner);
         Logger.Log(Category, $"LoginForm closed with result={result}.");
         if (result == DialogResult.OK)
             _ = _poller.PollOnceAsync();
@@ -137,23 +139,32 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private async void LogOut()
     {
-        Logger.Log(Category, "Logging out — clearing stored cookie and browser session.");
-        _cookieStore.Clear();
+        Logger.Log(Category, "Logging out — clearing sign-in marker, organization id, and browser session.");
+        // Everything that can throw stays inside the try: this is async void, so an
+        // escaping exception would surface on the ThreadException handler rather
+        // than being reported against the logout that caused it.
         try
         {
+            _signInState.Clear();
+            // The organization id is per-account, so it goes too. Keeping it would
+            // point the next account's fetch at the previous organization whenever
+            // login fails to re-capture lastActiveOrg — and clearing it is what
+            // makes the documented "log out and back in to retry org detection"
+            // actually retry rather than reuse the old value.
+            _organizationSettings.Clear();
             await _usageClient.ClearBrowserSessionAsync();
         }
         catch (Exception ex)
         {
-            Logger.Log(Category, $"Failed to clear browser session: {ex}");
+            Logger.Log(Category, $"Logout failed: {ex}");
         }
         _ = _poller.PollOnceAsync();
     }
 
-    private void ShowGaugeSettings()
+    private void ShowGaugeSettings(IWin32Window? owner = null)
     {
         using var form = new GaugeSettingsForm(_gaugeSettings.Load());
-        DialogResult result = form.ShowDialog();
+        DialogResult result = form.ShowDialog(owner);
         Logger.Log(Category, $"Gauge Display dialog closed with result={result}.");
         if (result != DialogResult.OK || form.Result is null)
             return;
@@ -186,7 +197,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
     }
 
-    private void ViewLog()
+    private void ViewLog(IWin32Window? owner = null)
     {
         try
         {
@@ -197,7 +208,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             Logger.Log(Category, $"Failed to open log file: {ex}");
-            MessageBox.Show($"Couldn't open log file: {ex.Message}", "Tokenometer",
+            MessageBox.Show(owner, $"Couldn't open log file: {ex.Message}", "Tokenometer",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }

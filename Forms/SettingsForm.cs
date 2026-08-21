@@ -10,10 +10,10 @@ namespace Tokenometer;
 internal sealed class SettingsForm : Form
 {
     public SettingsForm(
-        Action onLogin,
+        Action<IWin32Window> onLogin,
         Action onLogout,
-        Action onGaugeDisplay,
-        Action onViewLog)
+        Action<IWin32Window> onGaugeDisplay,
+        Action<IWin32Window> onViewLog)
     {
         Text = "Tokenometer Settings";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -28,10 +28,12 @@ internal sealed class SettingsForm : Form
         var viewLogButton = new Button { Text = "View log...", Location = new Point(15, 120), Width = 250 };
         var closeButton = new Button { Text = "Close", DialogResult = DialogResult.Cancel, Location = new Point(175, 160), Width = 90 };
 
-        loginButton.Click += (_, _) => onLogin();
+        // Pass this form as the owner so the dialogs these open are modal to it and
+        // can't end up behind it in the z-order.
+        loginButton.Click += (_, _) => onLogin(this);
         logoutButton.Click += (_, _) => onLogout();
-        gaugeDisplayButton.Click += (_, _) => onGaugeDisplay();
-        viewLogButton.Click += (_, _) => onViewLog();
+        gaugeDisplayButton.Click += (_, _) => onGaugeDisplay(this);
+        viewLogButton.Click += (_, _) => onViewLog(this);
 
         CancelButton = closeButton;
 

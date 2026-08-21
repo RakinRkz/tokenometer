@@ -2,8 +2,10 @@ namespace Tokenometer;
 
 internal sealed class GaugeSettingsForm : Form
 {
-    private readonly NumericUpDown _amberInput = new() { Minimum = 1, Maximum = 99, Width = 80 };
-    private readonly NumericUpDown _redInput = new() { Minimum = 1, Maximum = 99, Width = 80 };
+    // Range matches GaugeThresholds.IsValid rather than being stricter than it —
+    // Save still enforces amber < red, so no invalid pair can get through.
+    private readonly NumericUpDown _amberInput = new() { Minimum = 0, Maximum = 100, Width = 80 };
+    private readonly NumericUpDown _redInput = new() { Minimum = 0, Maximum = 100, Width = 80 };
     private readonly CheckBox _invertInput = new() { AutoSize = true };
     private readonly Button _saveButton = new() { Text = "Save" };
     private readonly Button _cancelButton = new() { Text = "Cancel", DialogResult = DialogResult.Cancel };

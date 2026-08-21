@@ -18,17 +18,16 @@ internal sealed class LoginForm : Form
     private const string SessionCookieName = "sessionKey";
     private const string ActiveOrganizationCookieName = "lastActiveOrg";
 
-    private readonly ICookieStore _cookieStore;
+    private readonly ISignInState _signInState;
     private readonly IOrganizationSettings _organizationSettings;
     private readonly WebView2 _webView = new();
     private readonly System.Windows.Forms.Timer _cookiePollTimer = new() { Interval = 1000 };
     private int _pollTickCount;
+    private bool _captured;
 
-    public string? CapturedCookieHeader { get; private set; }
-
-    public LoginForm(ICookieStore cookieStore, IOrganizationSettings organizationSettings)
+    public LoginForm(ISignInState signInState, IOrganizationSettings organizationSettings)
     {
-        _cookieStore = cookieStore;
+        _signInState = signInState;
         _organizationSettings = organizationSettings;
         Text = "Log in to Claude.ai";
         Width = 480;
@@ -44,7 +43,7 @@ internal sealed class LoginForm : Form
         FormClosed += (_, _) =>
         {
             _cookiePollTimer.Stop();
-            Logger.Log("LoginForm", $"Window closed. DialogResult={DialogResult}, captured={CapturedCookieHeader is not null}");
+            Logger.Log("LoginForm", $"Window closed. DialogResult={DialogResult}, captured={_captured}");
         };
         Load += OnLoadAsync;
 
@@ -99,22 +98,21 @@ internal sealed class LoginForm : Form
                 string.Join(",", cookies.Select(c => c.Name)));
         }
 
-        if (!CookieHeaderBuilder.Contains(cookies, SessionCookieName))
+        if (!BrowserCookies.Contains(cookies, SessionCookieName))
             return;
 
-        string cookieHeader = CookieHeaderBuilder.BuildHeader(cookies);
         Logger.Log("LoginForm",
-            $"{SessionCookieName} found after {_pollTickCount} polls — captured {cookies.Count} cookies: " +
+            $"{SessionCookieName} found after {_pollTickCount} polls — {cookies.Count} cookies present: " +
             string.Join(",", cookies.Select(c => c.Name)));
 
         _cookiePollTimer.Stop();
-        CapturedCookieHeader = cookieHeader;
-        _cookieStore.Save(cookieHeader);
+        _captured = true;
+        _signInState.MarkSignedIn();
 
         // claude.ai sets this to the active organization's id during login — use it
         // instead of requiring a manual DevTools lookup. Falls back to whatever's
         // already stored (or unset) if the cookie is ever renamed or missing.
-        string? organizationId = CookieHeaderBuilder.FindValue(cookies, ActiveOrganizationCookieName);
+        string? organizationId = BrowserCookies.FindValue(cookies, ActiveOrganizationCookieName);
         if (organizationId is not null)
         {
             _organizationSettings.Save(organizationId);

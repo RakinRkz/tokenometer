@@ -21,6 +21,18 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
     private readonly WebView2 _webView = new();
     private Task? _readyTask;
 
+    /// <summary>
+    /// Serialises everything that touches the browser. The in-page fetch hands its
+    /// result back through a single window global, so two overlapping fetches would
+    /// share one slot: the second kickoff nulls the first's result, and both pollers
+    /// then read whichever response happens to land. Overlap is easy to trigger —
+    /// "Check now" during a slow poll, or a login completing while a timer tick is
+    /// still in flight. Holding this for the whole call also means only one caller
+    /// is ever inside EnsureReadyAsync, so the cached _readyTask can't be observed
+    /// mid-initialisation by a second caller.
+    /// </summary>
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
     public BrowserUsageFetcher()
     {
         _hiddenHost = new Form
@@ -39,8 +51,22 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
 
     private const int PollIntervalMs = 150;
     private const int MaxPollAttempts = 40; // ~6s timeout
+    private static readonly TimeSpan InitTimeout = TimeSpan.FromSeconds(30);
 
     public async Task<(bool Ok, int Status, string Body)> FetchJsonAsync(string url, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            return await FetchJsonCoreAsync(url, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<(bool Ok, int Status, string Body)> FetchJsonCoreAsync(string url, CancellationToken cancellationToken)
     {
         await EnsureReadyAsync(cancellationToken);
 
@@ -94,9 +120,17 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
 
     public async Task ClearCookiesAsync(CancellationToken cancellationToken)
     {
-        await EnsureReadyAsync(cancellationToken);
-        _webView.CoreWebView2.CookieManager.DeleteAllCookies();
-        Logger.Log(Category, "Cleared all cookies in the shared browser profile.");
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            await EnsureReadyAsync(cancellationToken);
+            _webView.CoreWebView2.CookieManager.DeleteAllCookies();
+            Logger.Log(Category, "Cleared all cookies in the shared browser profile.");
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task EnsureReadyAsync(CancellationToken cancellationToken)
@@ -116,23 +150,41 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
 
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
+        // An independent deadline on top of the caller's token. Two reasons it can't
+        // rely on the caller alone: ClearCookiesAsync is reached from logout with no
+        // token at all, and none of these steps carry their own timeout. A host that
+        // never raises NavigationCompleted would otherwise hang forever — and since
+        // _readyTask is cached and awaited by every later call, that single hang
+        // wedges all subsequent fetches with no error ever reaching the tray.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(InitTimeout);
+
         Logger.Log(Category, "Initializing hidden WebView2 host.");
-        CoreWebView2Environment environment = await SharedBrowserEnvironment.GetAsync();
-        await _webView.EnsureCoreWebView2Async(environment);
-
-        var navigationComplete = new TaskCompletionSource();
-        void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
+        try
         {
-            _webView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
-            Logger.Log(Category, $"Hidden host navigation completed. Success={args.IsSuccess}");
-            navigationComplete.TrySetResult();
+            CoreWebView2Environment environment =
+                await SharedBrowserEnvironment.GetAsync().WaitAsync(deadline.Token);
+            await _webView.EnsureCoreWebView2Async(environment).WaitAsync(deadline.Token);
+
+            var navigationComplete = new TaskCompletionSource();
+            void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
+            {
+                _webView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
+                Logger.Log(Category, $"Hidden host navigation completed. Success={args.IsSuccess}");
+                navigationComplete.TrySetResult();
+            }
+            _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+            _webView.CoreWebView2.Navigate(HomeUrl);
+
+            await navigationComplete.Task.WaitAsync(deadline.Token);
         }
-        _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.CoreWebView2.Navigate(HomeUrl);
-
-        using (cancellationToken.Register(() => navigationComplete.TrySetCanceled()))
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            await navigationComplete.Task;
+            // Our deadline, not the caller's cancellation — report it as a timeout so
+            // EnsureReadyAsync clears _readyTask and the next poll starts a fresh attempt.
+            Logger.Log(Category, $"Init timed out after {InitTimeout.TotalSeconds:0}s.");
+            throw new TimeoutException(
+                $"The embedded browser didn't become ready within {InitTimeout.TotalSeconds:0}s.");
         }
 
         Logger.Log(Category, "Hidden WebView2 host ready.");
@@ -140,6 +192,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
 
     public void Dispose()
     {
+        _gate.Dispose();
         _webView.Dispose();
         _hiddenHost.Dispose();
     }

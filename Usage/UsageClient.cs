@@ -15,25 +15,24 @@ internal sealed class UsageClient : IDisposable
     private const string UsageUrlTemplate = "https://claude.ai/api/organizations/{0}/usage";
     private const string Category = "UsageClient";
 
-    private readonly ICookieStore _cookieStore;
+    private readonly ISignInState _signInState;
     private readonly IOrganizationSettings _organizationSettings;
     private readonly IUsageFetcher _fetcher;
 
-    public UsageClient(ICookieStore cookieStore, IOrganizationSettings organizationSettings, IUsageFetcher fetcher)
+    public UsageClient(ISignInState signInState, IOrganizationSettings organizationSettings, IUsageFetcher fetcher)
     {
-        _cookieStore = cookieStore;
+        _signInState = signInState;
         _organizationSettings = organizationSettings;
         _fetcher = fetcher;
     }
 
-    public bool IsAuthenticated => _cookieStore.Load() is not null;
+    public bool IsAuthenticated => _signInState.IsSignedIn;
 
     public async Task<UsageSnapshot> GetUsageAsync(CancellationToken cancellationToken = default)
     {
-        string? sessionCookie = _cookieStore.Load();
-        if (sessionCookie is null)
+        if (!_signInState.IsSignedIn)
         {
-            Logger.Log(Category, "No session cookie stored — returning mock data.");
+            Logger.Log(Category, "Not signed in — returning mock data.");
             return GetMockUsage();
         }
 
@@ -57,7 +56,7 @@ internal sealed class UsageClient : IDisposable
         {
             (ok, status, body) = await _fetcher.FetchJsonAsync(usageUrl, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Logger.Log(Category, $"Browser fetch threw after {stopwatch.ElapsedMilliseconds}ms: {ex}");
             throw new UsageFetchException($"Browser fetch failed: {ex.Message}", ex);
@@ -67,8 +66,11 @@ internal sealed class UsageClient : IDisposable
 
         if (!ok)
         {
-            Logger.Log(Category, $"Failure body: {body}");
-            string snippet = body.Length > 300 ? body[..300] : body;
+            // Truncated for the log as well as for the message. An error body is
+            // whatever claude.ai returned, and the same "log no more than needed"
+            // rule that keeps the cookie value out of the log applies to it.
+            string snippet = body.Length > 300 ? body[..300] + "…" : body;
+            Logger.Log(Category, $"Failure body ({body.Length} chars): {snippet}");
             throw new UsageFetchException($"HTTP {status} — {snippet}");
         }
 

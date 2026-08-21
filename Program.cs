@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Tokenometer;
 
 static class Program
@@ -24,7 +26,11 @@ static class Program
             e.SetObserved();
         };
 
-        Logger.Log("Program", $"Tokenometer starting. PID={Environment.ProcessId}, OSVersion={Environment.OSVersion}, .NET={Environment.Version}");
+        // InformationalVersion carries <Version> plus the commit hash SourceLink
+        // appends, so a support log identifies the exact build that produced it.
+        string version = typeof(Program).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+        Logger.Log("Program", $"Tokenometer {version} starting. PID={Environment.ProcessId}, OSVersion={Environment.OSVersion}, .NET={Environment.Version}");
         Logger.Log("Program", $"Log file: {Logger.LogFilePath}");
 
         ApplicationConfiguration.Initialize();

@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <!-- This version is inert: assemblyIdentity only drives side-by-side assembly
+       binding, which a .NET app doesn't use, and Windows never surfaces it. The
+       real version comes from <Version> in Tokenometer.csproj. Left at 1.0.0.0
+       deliberately rather than kept in sync with something that reads it. -->
   <assemblyIdentity version="1.0.0.0" name="Tokenometer.app"/>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>

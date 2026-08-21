@@ -8,7 +8,19 @@ internal sealed class GaugeSettings : IGaugeSettings
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Tokenometer", "gauge-settings.json");
 
-    public GaugeThresholds Load()
+    /// <summary>
+    /// The tray icon, tooltip and popup each re-read thresholds on every poll and
+    /// every redraw, and this app is the file's only writer — so it's read from
+    /// disk once and served from memory after that, with <see cref="Save"/>
+    /// refreshing it. The tradeoff: editing gauge-settings.json by hand while the
+    /// app is running won't be picked up until restart. The settings dialog is the
+    /// supported way to change these.
+    /// </summary>
+    private GaugeThresholds? _cached;
+
+    public GaugeThresholds Load() => _cached ??= ReadFromDisk();
+
+    private GaugeThresholds ReadFromDisk()
     {
         if (!File.Exists(_filePath))
             return GaugeThresholds.Default;
@@ -27,9 +39,22 @@ internal sealed class GaugeSettings : IGaugeSettings
 
     public void Save(GaugeThresholds thresholds)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(thresholds));
-        Logger.Log("GaugeSettings",
-            $"Saved: amberAt={thresholds.AmberAt}, redAt={thresholds.RedAt}, invert={thresholds.Invert}");
+        // Cache before writing so the new thresholds take effect on screen even if
+        // persisting them fails — a settings change is never silently ignored.
+        _cached = thresholds;
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(thresholds));
+            Logger.Log("GaugeSettings",
+                $"Saved: amberAt={thresholds.AmberAt}, redAt={thresholds.RedAt}, invert={thresholds.Invert}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Load() already catches its own I/O failures; this is the matching half.
+            // The setting is live for this session, only persistence across restart is lost.
+            Logger.Log("GaugeSettings", $"Failed to save — applies this session only: {ex}");
+        }
     }
 }

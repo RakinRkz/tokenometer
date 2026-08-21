@@ -55,7 +55,7 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 | Item | What it does |
 |---|---|
 | Log in to claude.ai... | Opens the embedded login window; also auto-detects your organization id |
-| Log out | Clears the stored session (both the saved cookie and the embedded browser's own cookies) |
+| Log out | Clears the sign-in marker, the embedded browser's own cookies, and the auto-detected organization id |
 | Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
 | View log... | Opens the log file for troubleshooting |
 
@@ -65,7 +65,7 @@ Everything is stored under `%AppData%\Tokenometer\`:
 
 | File | Contents |
 |---|---|
-| `session.dat` | Your claude.ai session cookie, DPAPI-encrypted |
+| `signed-in.marker` | Empty file; its presence is how the app knows you've logged in. Your session itself lives only in the `WebView2\` profile below, never in a second copy |
 | `organization-id.txt` | The organization id, auto-detected during login (not a secret) |
 | `gauge-settings.json` | Your color threshold and gauge-direction preferences |
 | `log.txt` / `log.old.txt` | Diagnostic logs (rotated at 5MB), never contains the cookie value itself |
@@ -103,7 +103,9 @@ Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-This produces `installer-output\TokenometerSetup.exe`. Bump `MyAppVersion` in `installer.iss` before a release.
+This produces `installer-output\TokenometerSetup.exe`.
+
+Note that `installer.iss` reads the version out of `publish\Tokenometer.exe`, so publish before compiling the installer. To cut a release, bump `<Version>` in `Tokenometer.csproj` — that's the only place it lives, and the installer and the startup log line both follow from it.
 
 ## Troubleshooting
 
@@ -121,14 +123,14 @@ Tokenometer/
   TrayApplicationContext.cs     composition root — tray icon, menu, wiring
   Forms/                        LoginForm, GaugePopupForm, GaugeSettingsForm, SettingsForm
   Usage/                        UsageClient, UsagePoller, UsageResponseParser, IUsageFetcher
-  Browser/                      BrowserUsageFetcher, SharedBrowserEnvironment (the hidden WebView2 host)
+  Browser/                      BrowserUsageFetcher, BrowserCookies, SharedBrowserEnvironment (the hidden WebView2 host)
   Rendering/                    GaugeRenderer (GDI+), GaugeColorSelector, GaugeDisplay, GaugeThresholds
-  Storage/                      CookieStore, OrganizationSettings, GaugeSettings + their interfaces
+  Storage/                      SignInState, OrganizationSettings, GaugeSettings + their interfaces
   Logging/                      Logger
 Tokenometer.Tests/               xUnit tests + fakes for the above interfaces
 ```
 
-`UsageClient` doesn't reach for `CookieStore`/`OrganizationSettings`/`BrowserUsageFetcher` directly — it takes `ICookieStore`, `IOrganizationSettings`, and `IUsageFetcher` through its constructor. `TrayApplicationContext` is the only place that wires the real implementations together, which is what lets `UsageClientTests` exercise the actual fetch/parse/error-handling logic against fakes instead of a live browser and network.
+`UsageClient` doesn't reach for `SignInState`/`OrganizationSettings`/`BrowserUsageFetcher` directly — it takes `ISignInState`, `IOrganizationSettings`, and `IUsageFetcher` through its constructor. `TrayApplicationContext` is the only place that wires the real implementations together, which is what lets `UsageClientTests` exercise the actual fetch/parse/error-handling logic against fakes instead of a live browser and network.
 
 Response parsing (`UsageResponseParser`), the color-threshold decision (`GaugeColorSelector`), and the used-vs-remaining decision (`GaugeDisplay`) are all pure functions for the same reason — split out from the networking and GDI+ drawing code they used to live inside, specifically so they don't need a browser or a graphics context to test.
 
