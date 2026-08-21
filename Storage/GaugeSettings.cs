@@ -4,9 +4,18 @@ namespace Tokenometer;
 
 internal sealed class GaugeSettings : IGaugeSettings
 {
-    private readonly string _filePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Tokenometer", "gauge-settings.json");
+    private static readonly string DefaultFolder = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Tokenometer");
+
+    private readonly string _filePath;
+
+    public GaugeSettings() : this(DefaultFolder)
+    {
+    }
+
+    // Folder injectable so the caching and fallback behaviour below can be tested
+    // against a temp directory instead of the real %AppData%.
+    internal GaugeSettings(string folder) => _filePath = Path.Combine(folder, "gauge-settings.json");
 
     /// <summary>
     /// The tray icon, tooltip and popup each re-read thresholds on every poll and

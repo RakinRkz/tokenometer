@@ -37,8 +37,8 @@ internal sealed class SettingsForm : Form
         };
         var verboseHint = new Label
         {
-            Text = "Records every poll, not just errors. Turn on before reproducing a problem, "
-                   + "then off again — it fills the log quickly.",
+            Text = "Records every poll, not just errors. On by default. Unticking keeps "
+                   + "startup, logins and failures but drops the per-poll detail.",
             AutoSize = true,
             MaximumSize = new Size(250, 0),
             ForeColor = SystemColors.GrayText,

@@ -5,16 +5,18 @@ internal sealed class UsagePoller : IDisposable
     // Comfortably longer than the browser's own init (30s) and in-page fetch (~6s)
     // deadlines, so this only fires when something below has stalled in a way those
     // don't cover — it's a backstop, not the primary timeout.
-    private static readonly TimeSpan PollTimeout = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DefaultPollTimeout = TimeSpan.FromSeconds(60);
 
+    private readonly TimeSpan _pollTimeout;
     private readonly UsageClient _client;
     private readonly System.Windows.Forms.Timer _timer;
 
     public event EventHandler<UsageSnapshot>? UsageUpdated;
     public event EventHandler<Exception>? FetchFailed;
 
-    public UsagePoller(UsageClient client, TimeSpan interval)
+    public UsagePoller(UsageClient client, TimeSpan interval, TimeSpan? pollTimeout = null)
     {
+        _pollTimeout = pollTimeout ?? DefaultPollTimeout;
         _client = client;
         _timer = new System.Windows.Forms.Timer { Interval = (int)interval.TotalMilliseconds };
         _timer.Tick += async (_, _) => await PollOnceAsync();
@@ -36,7 +38,7 @@ internal sealed class UsagePoller : IDisposable
         // Give the poll a real deadline. Passed nothing, UsageClient and
         // BrowserUsageFetcher threaded CancellationToken.None all the way down, so
         // every cancellation check below was inert.
-        using var deadline = new CancellationTokenSource(PollTimeout);
+        using var deadline = new CancellationTokenSource(_pollTimeout);
         try
         {
             UsageSnapshot snapshot = await _client.GetUsageAsync(deadline.Token);
@@ -47,7 +49,7 @@ internal sealed class UsagePoller : IDisposable
         {
             Logger.Error("UsagePoller", $"Poll timed out after {stopwatch.ElapsedMilliseconds}ms.");
             FetchFailed?.Invoke(this, new UsageFetchException(
-                $"Timed out after {PollTimeout.TotalSeconds:0}s waiting for the embedded browser."));
+                $"Timed out after {_pollTimeout.TotalSeconds:0}s waiting for the embedded browser."));
         }
         catch (Exception ex)
         {

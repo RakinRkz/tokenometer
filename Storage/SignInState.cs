@@ -16,19 +16,32 @@ internal sealed class SignInState : ISignInState
 {
     private const string Category = "SignInState";
 
-    private static readonly string Folder = Path.Combine(
+    private static readonly string DefaultFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Tokenometer");
 
-    private readonly string _markerPath = Path.Combine(Folder, "signed-in.marker");
-    private readonly string _legacyCookiePath = Path.Combine(Folder, "session.dat");
+    private readonly string _folder;
+    private readonly string _markerPath;
+    private readonly string _legacyCookiePath;
 
-    public SignInState() => RemoveLegacyCookieFile();
+    public SignInState() : this(DefaultFolder)
+    {
+    }
+
+    // Folder injectable so the marker and the session.dat migration below can be
+    // tested against a temp directory instead of the real %AppData%.
+    internal SignInState(string folder)
+    {
+        _folder = folder;
+        _markerPath = Path.Combine(folder, "signed-in.marker");
+        _legacyCookiePath = Path.Combine(folder, "session.dat");
+        RemoveLegacyCookieFile();
+    }
 
     public bool IsSignedIn => File.Exists(_markerPath);
 
     public void MarkSignedIn()
     {
-        Directory.CreateDirectory(Folder);
+        Directory.CreateDirectory(_folder);
         File.WriteAllText(_markerPath, string.Empty);
         Logger.Info(Category, "Marked signed in.");
     }

@@ -60,7 +60,7 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 | Log out | Clears the sign-in marker, the embedded browser's own cookies, and the auto-detected organization id |
 | Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
 | View log... | Opens the log file for troubleshooting |
-| Verbose logging | Records every poll, not just errors. Off by default; turn it on before reproducing a problem, then off again |
+| Verbose logging | Records every poll, not just errors. On by default; untick it to keep only startup, logins and failures |
 
 ## Where your data lives
 
@@ -72,7 +72,7 @@ Everything is stored under `%AppData%\Tokenometer\`:
 | `organization-id.txt` | The organization id, auto-detected during login (not a secret) |
 | `gauge-settings.json` | Your color threshold and gauge-direction preferences |
 | `log.txt` / `log.old.txt` | Diagnostic logs (rotated at 5MB), never contains the cookie value itself |
-| `verbose-logging.marker` | Present only while verbose logging is switched on |
+| `log-settings.json` | Whether the log records per-poll detail (verbose) |
 | `WebView2\` | The embedded browser's profile (cookies, cache) |
 
 Uninstalling the app does **not** delete this folder, so reinstalling picks up right where you left off. Delete it manually if you want a clean slate.
@@ -97,7 +97,9 @@ dotnet publish Tokenometer.csproj -c Release -r win-x64 --self-contained false -
 dotnet test Tokenometer.Tests/Tokenometer.Tests.csproj
 ```
 
-Tests cover the pure logic — gauge color thresholds, the claude.ai response parser, and `UsageClient`'s orchestration (via fakes for storage/fetching). WinForms UI and the WebView2 browser automation aren't unit tested; that would need UI automation rather than xUnit, and is a deliberate boundary rather than a gap that got missed.
+Tests cover the pure logic (gauge colour thresholds, the used-vs-remaining decision, the claude.ai response parser), `UsageClient` and `UsagePoller`'s orchestration against fakes, and the file-backed stores against a temp directory — including the `session.dat` migration and the gauge-settings cache. The stores take an injectable folder for exactly that reason, and a module initializer redirects `Logger` so a test run never appends fixture data to your real `log.txt`.
+
+WinForms UI and the WebView2 browser automation aren't unit tested; that would need UI automation rather than xUnit, and is a deliberate boundary rather than a gap that got missed. Worth knowing what that boundary costs: the organization-id race fixed in 0.3.0 lived in the timing between claude.ai setting two cookies, and no unit test would have caught it — only a genuine first-ever login on a clean profile did.
 
 ### Building the installer
 
@@ -113,7 +115,7 @@ Note that `installer.iss` reads the version out of `publish\Tokenometer.exe`, so
 
 ## Troubleshooting
 
-Start with **View log...** in the tray menu. By default it records startup, logins, logouts and anything that failed — a healthy poll writes nothing, so whatever is in there is worth reading. If you need the full picture, tick **Verbose logging** in Settings, reproduce the problem, then untick it: that adds a line for every fetch attempt, HTTP status and timing. Either way the file rotates at 5MB.
+Start with **View log...** in the tray menu. By default it records every fetch attempt, HTTP status and timing, which is what you want when the endpoint changes under you. Untick **Verbose logging** in Settings to drop the per-poll detail and keep only startup, logins, logouts and failures. Either way the file rotates at 5MB into `log.old.txt`.
 
 Common issues:
 
