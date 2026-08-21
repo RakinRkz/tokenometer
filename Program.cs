@@ -10,19 +10,23 @@ static class Program
         using var singleInstanceLock = new Mutex(initiallyOwned: true, "Tokenometer.SingleInstance", out bool createdNew);
         if (!createdNew)
         {
-            Logger.Log("Program", "Startup aborted — another instance already holds the single-instance mutex.");
+            Logger.Warn("Program", "Startup aborted — another instance already holds the single-instance mutex.");
             MessageBox.Show("Tokenometer is already running — check your system tray.", "Tokenometer",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
+        // Before the first log line, so a verbose session captures startup too.
+        if (new LogSettings().Verbose)
+            Logger.MinimumLevel = LogLevel.Debug;
+
         Application.ThreadException += (_, e) =>
-            Logger.Log("Program", $"Unhandled UI thread exception: {e.Exception}");
+            Logger.Error("Program", $"Unhandled UI thread exception: {e.Exception}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            Logger.Log("Program", $"Unhandled exception (terminating={e.IsTerminating}): {e.ExceptionObject}");
+            Logger.Error("Program", $"Unhandled exception (terminating={e.IsTerminating}): {e.ExceptionObject}");
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            Logger.Log("Program", $"Unobserved task exception: {e.Exception}");
+            Logger.Error("Program", $"Unobserved task exception: {e.Exception}");
             e.SetObserved();
         };
 
@@ -30,12 +34,12 @@ static class Program
         // appends, so a support log identifies the exact build that produced it.
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
-        Logger.Log("Program", $"Tokenometer {version} starting. PID={Environment.ProcessId}, OSVersion={Environment.OSVersion}, .NET={Environment.Version}");
-        Logger.Log("Program", $"Log file: {Logger.LogFilePath}");
+        Logger.Info("Program", $"Tokenometer {version} starting. PID={Environment.ProcessId}, OSVersion={Environment.OSVersion}, .NET={Environment.Version}");
+        Logger.Debug("Program", $"Log file: {Logger.LogFilePath}");
 
         ApplicationConfiguration.Initialize();
         Application.Run(new TrayApplicationContext());
 
-        Logger.Log("Program", "Tokenometer exiting normally.");
+        Logger.Info("Program", "Tokenometer exiting normally.");
     }
 }

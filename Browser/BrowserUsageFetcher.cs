@@ -86,7 +86,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
                 });
             """;
         await _webView.CoreWebView2.ExecuteScriptAsync(kickoffScript);
-        Logger.Log(Category, $"Kicked off in-page fetch for {url}; polling for result.");
+        Logger.Debug(Category, $"Kicked off in-page fetch for {url}; polling for result.");
 
         string? resultJson = null;
         for (int attempt = 1; attempt <= MaxPollAttempts; attempt++)
@@ -99,13 +99,13 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
                 continue;
 
             resultJson = JsonSerializer.Deserialize<string>(raw);
-            Logger.Log(Category, $"Poll #{attempt}: result ready after ~{attempt * PollIntervalMs}ms.");
+            Logger.Debug(Category, $"Poll #{attempt}: result ready after ~{attempt * PollIntervalMs}ms.");
             break;
         }
 
         if (resultJson is null)
         {
-            Logger.Log(Category, $"Timed out after {MaxPollAttempts * PollIntervalMs}ms waiting for in-page fetch.");
+            Logger.Error(Category, $"Timed out after {MaxPollAttempts * PollIntervalMs}ms waiting for in-page fetch.");
             throw new TimeoutException("The in-page fetch didn't complete within the timeout.");
         }
 
@@ -114,7 +114,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
         int status = doc.RootElement.GetProperty("status").GetInt32();
         string body = doc.RootElement.GetProperty("body").GetString() ?? string.Empty;
 
-        Logger.Log(Category, $"fetch({url}) -> ok={ok} status={status} bodyLen={body.Length}");
+        Logger.Debug(Category, $"fetch({url}) -> ok={ok} status={status} bodyLen={body.Length}");
         return (ok, status, body);
     }
 
@@ -125,7 +125,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
         {
             await EnsureReadyAsync(cancellationToken);
             _webView.CoreWebView2.CookieManager.DeleteAllCookies();
-            Logger.Log(Category, "Cleared all cookies in the shared browser profile.");
+            Logger.Info(Category, "Cleared all cookies in the shared browser profile.");
         }
         finally
         {
@@ -159,7 +159,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(InitTimeout);
 
-        Logger.Log(Category, "Initializing hidden WebView2 host.");
+        Logger.Debug(Category, "Initializing hidden WebView2 host.");
         try
         {
             CoreWebView2Environment environment =
@@ -170,7 +170,7 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
             void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
             {
                 _webView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
-                Logger.Log(Category, $"Hidden host navigation completed. Success={args.IsSuccess}");
+                Logger.Debug(Category, $"Hidden host navigation completed. Success={args.IsSuccess}");
                 navigationComplete.TrySetResult();
             }
             _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -182,12 +182,12 @@ internal sealed class BrowserUsageFetcher : IUsageFetcher
         {
             // Our deadline, not the caller's cancellation — report it as a timeout so
             // EnsureReadyAsync clears _readyTask and the next poll starts a fresh attempt.
-            Logger.Log(Category, $"Init timed out after {InitTimeout.TotalSeconds:0}s.");
+            Logger.Error(Category, $"Init timed out after {InitTimeout.TotalSeconds:0}s.");
             throw new TimeoutException(
                 $"The embedded browser didn't become ready within {InitTimeout.TotalSeconds:0}s.");
         }
 
-        Logger.Log(Category, "Hidden WebView2 host ready.");
+        Logger.Debug(Category, "Hidden WebView2 host ready.");
     }
 
     public void Dispose()

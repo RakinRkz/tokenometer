@@ -32,7 +32,7 @@ internal sealed class GaugeSettings : IGaugeSettings
         }
         catch (Exception ex) when (ex is JsonException or IOException)
         {
-            Logger.Log("GaugeSettings", $"Failed to load, using defaults: {ex.Message}");
+            Logger.Warn("GaugeSettings", $"Failed to load, using defaults: {ex.Message}");
             return GaugeThresholds.Default;
         }
     }
@@ -47,14 +47,14 @@ internal sealed class GaugeSettings : IGaugeSettings
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
             File.WriteAllText(_filePath, JsonSerializer.Serialize(thresholds));
-            Logger.Log("GaugeSettings",
+            Logger.Info("GaugeSettings",
                 $"Saved: amberAt={thresholds.AmberAt}, redAt={thresholds.RedAt}, invert={thresholds.Invert}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Load() already catches its own I/O failures; this is the matching half.
             // The setting is live for this session, only persistence across restart is lost.
-            Logger.Log("GaugeSettings", $"Failed to save — applies this session only: {ex}");
+            Logger.Warn("GaugeSettings", $"Failed to save — applies this session only: {ex}");
         }
     }
 }

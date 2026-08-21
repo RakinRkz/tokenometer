@@ -54,11 +54,11 @@ internal sealed class LoginForm : Form
         FormClosed += (_, _) =>
         {
             _cookiePollTimer.Stop();
-            Logger.Log("LoginForm", $"Window closed. DialogResult={DialogResult}, captured={_captured}");
+            Logger.Info("LoginForm", $"Window closed. DialogResult={DialogResult}, captured={_captured}");
         };
         Load += OnLoadAsync;
 
-        Logger.Log("LoginForm", "Window constructed.");
+        Logger.Debug("LoginForm", "Window constructed.");
     }
 
     private async void OnLoadAsync(object? sender, EventArgs e)
@@ -67,11 +67,11 @@ internal sealed class LoginForm : Form
         {
             CoreWebView2Environment environment = await SharedBrowserEnvironment.GetAsync();
             await _webView.EnsureCoreWebView2Async(environment);
-            Logger.Log("LoginForm", "WebView2 ready (shared environment).");
+            Logger.Debug("LoginForm", "WebView2 ready (shared environment).");
         }
         catch (WebView2RuntimeNotFoundException ex)
         {
-            Logger.Log("LoginForm", $"WebView2 runtime not found: {ex}");
+            Logger.Error("LoginForm", $"WebView2 runtime not found: {ex}");
             MessageBox.Show(
                 this,
                 "The WebView2 runtime isn't installed. Install the Evergreen runtime from " +
@@ -83,11 +83,11 @@ internal sealed class LoginForm : Form
         }
 
         _webView.CoreWebView2.NavigationStarting += (_, args) =>
-            Logger.Log("LoginForm", $"Navigating to {args.Uri}");
+            Logger.Debug("LoginForm", $"Navigating to {args.Uri}");
         _webView.CoreWebView2.NavigationCompleted += (_, args) =>
-            Logger.Log("LoginForm", $"Navigation completed. Success={args.IsSuccess}, WebErrorStatus={args.WebErrorStatus}, url={_webView.CoreWebView2.Source}");
+            Logger.Debug("LoginForm", $"Navigation completed. Success={args.IsSuccess}, WebErrorStatus={args.WebErrorStatus}, url={_webView.CoreWebView2.Source}");
 
-        Logger.Log("LoginForm", $"Navigating to login page: {LoginUrl}");
+        Logger.Debug("LoginForm", $"Navigating to login page: {LoginUrl}");
         _webView.CoreWebView2.Navigate(LoginUrl);
         _cookiePollTimer.Start();
     }
@@ -104,7 +104,7 @@ internal sealed class LoginForm : Form
         // Log a heartbeat every ~10s so we can see the poll is alive without spamming every tick.
         if (_pollTickCount % 10 == 0)
         {
-            Logger.Log("LoginForm",
+            Logger.Debug("LoginForm",
                 $"Poll #{_pollTickCount}: {cookies.Count} cookies present for {CookieDomain}: " +
                 string.Join(",", cookies.Select(c => c.Name)));
         }
@@ -124,7 +124,7 @@ internal sealed class LoginForm : Form
             _ticksWaitingForOrganization++;
             if (_ticksWaitingForOrganization == 0)
             {
-                Logger.Log("LoginForm",
+                Logger.Info("LoginForm",
                     $"{SessionCookieName} found after {_pollTickCount} polls; waiting up to " +
                     $"{MaxOrganizationWaitTicks}s for {ActiveOrganizationCookieName}.");
             }
@@ -133,7 +133,7 @@ internal sealed class LoginForm : Form
                 return;
         }
 
-        Logger.Log("LoginForm",
+        Logger.Info("LoginForm",
             $"Capturing after {_pollTickCount} polls — {cookies.Count} cookies present: " +
             string.Join(",", cookies.Select(c => c.Name)));
 
@@ -144,13 +144,13 @@ internal sealed class LoginForm : Form
         if (organizationId is not null)
         {
             _organizationSettings.Save(organizationId);
-            Logger.Log("LoginForm",
+            Logger.Info("LoginForm",
                 $"Auto-detected organization id from {ActiveOrganizationCookieName} cookie " +
                 $"after {Math.Max(_ticksWaitingForOrganization, 0)}s: {organizationId}");
         }
         else
         {
-            Logger.Log("LoginForm",
+            Logger.Warn("LoginForm",
                 $"No {ActiveOrganizationCookieName} cookie after waiting {MaxOrganizationWaitTicks}s — " +
                 "organization id not auto-detected.");
         }

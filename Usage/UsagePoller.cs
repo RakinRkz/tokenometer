@@ -18,12 +18,12 @@ internal sealed class UsagePoller : IDisposable
         _client = client;
         _timer = new System.Windows.Forms.Timer { Interval = (int)interval.TotalMilliseconds };
         _timer.Tick += async (_, _) => await PollOnceAsync();
-        Logger.Log("UsagePoller", $"Created with interval {interval}.");
+        Logger.Debug("UsagePoller", $"Created with interval {interval}.");
     }
 
     public void Start()
     {
-        Logger.Log("UsagePoller", "Start() — timer armed, firing an immediate poll.");
+        Logger.Debug("UsagePoller", "Start() — timer armed, firing an immediate poll.");
         _timer.Start();
         _ = PollOnceAsync();
     }
@@ -31,7 +31,7 @@ internal sealed class UsagePoller : IDisposable
     public async Task PollOnceAsync()
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        Logger.Log("UsagePoller", "Poll starting.");
+        Logger.Debug("UsagePoller", "Poll starting.");
 
         // Give the poll a real deadline. Passed nothing, UsageClient and
         // BrowserUsageFetcher threaded CancellationToken.None all the way down, so
@@ -40,25 +40,25 @@ internal sealed class UsagePoller : IDisposable
         try
         {
             UsageSnapshot snapshot = await _client.GetUsageAsync(deadline.Token);
-            Logger.Log("UsagePoller", $"Poll succeeded in {stopwatch.ElapsedMilliseconds}ms.");
+            Logger.Debug("UsagePoller", $"Poll succeeded in {stopwatch.ElapsedMilliseconds}ms.");
             UsageUpdated?.Invoke(this, snapshot);
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
-            Logger.Log("UsagePoller", $"Poll timed out after {stopwatch.ElapsedMilliseconds}ms.");
+            Logger.Error("UsagePoller", $"Poll timed out after {stopwatch.ElapsedMilliseconds}ms.");
             FetchFailed?.Invoke(this, new UsageFetchException(
                 $"Timed out after {PollTimeout.TotalSeconds:0}s waiting for the embedded browser."));
         }
         catch (Exception ex)
         {
-            Logger.Log("UsagePoller", $"Poll failed after {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
+            Logger.Error("UsagePoller", $"Poll failed after {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
             FetchFailed?.Invoke(this, ex);
         }
     }
 
     public void Dispose()
     {
-        Logger.Log("UsagePoller", "Disposed.");
+        Logger.Debug("UsagePoller", "Disposed.");
         _timer.Dispose();
     }
 }

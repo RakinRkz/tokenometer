@@ -32,21 +32,21 @@ internal sealed class UsageClient : IDisposable
     {
         if (!_signInState.IsSignedIn)
         {
-            Logger.Log(Category, "Not signed in — returning mock data.");
+            Logger.Debug(Category, "Not signed in — returning mock data.");
             return GetMockUsage();
         }
 
         string? organizationId = _organizationSettings.Load();
         if (organizationId is null)
         {
-            Logger.Log(Category, "No organization id stored — cannot build usage URL.");
+            Logger.Warn(Category, "No organization id stored — cannot build usage URL.");
             throw new UsageFetchException(
                 "Organization ID not set — it's normally captured automatically from " +
                 "Settings > Log in to claude.ai. Try logging out and back in.");
         }
 
         string usageUrl = string.Format(UsageUrlTemplate, organizationId);
-        Logger.Log(Category, $"Fetching {usageUrl} via embedded browser.");
+        Logger.Debug(Category, $"Fetching {usageUrl} via embedded browser.");
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         bool ok;
@@ -58,11 +58,11 @@ internal sealed class UsageClient : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Logger.Log(Category, $"Browser fetch threw after {stopwatch.ElapsedMilliseconds}ms: {ex}");
+            Logger.Error(Category, $"Browser fetch threw after {stopwatch.ElapsedMilliseconds}ms: {ex}");
             throw new UsageFetchException($"Browser fetch failed: {ex.Message}", ex);
         }
 
-        Logger.Log(Category, $"Fetch completed in {stopwatch.ElapsedMilliseconds}ms: ok={ok} status={status} bodyLen={body.Length}");
+        Logger.Debug(Category, $"Fetch completed in {stopwatch.ElapsedMilliseconds}ms: ok={ok} status={status} bodyLen={body.Length}");
 
         if (!ok)
         {
@@ -70,21 +70,21 @@ internal sealed class UsageClient : IDisposable
             // whatever claude.ai returned, and the same "log no more than needed"
             // rule that keeps the cookie value out of the log applies to it.
             string snippet = body.Length > 300 ? body[..300] + "…" : body;
-            Logger.Log(Category, $"Failure body ({body.Length} chars): {snippet}");
+            Logger.Error(Category, $"Failure body ({body.Length} chars): {snippet}");
             throw new UsageFetchException($"HTTP {status} — {snippet}");
         }
 
         try
         {
             UsageSnapshot snapshot = UsageResponseParser.Parse(body, DateTimeOffset.Now);
-            Logger.Log(Category,
+            Logger.Debug(Category,
                 $"Parsed OK: session={snapshot.SessionPercent}% (resets {snapshot.SessionResetsAt}), " +
                 $"weekly={snapshot.WeeklyPercent}% (resets {snapshot.WeeklyResetsAt})");
             return snapshot;
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException)
         {
-            Logger.Log(Category, $"Parse failure: {ex}\r\nBody: {body}");
+            Logger.Error(Category, $"Parse failure: {ex}\r\nBody: {body}");
             throw new UsageFetchException($"Response shape changed — couldn't parse JSON: {ex.Message}", ex);
         }
     }
@@ -103,7 +103,7 @@ internal sealed class UsageClient : IDisposable
 
     public void Dispose()
     {
-        Logger.Log(Category, "Disposed.");
+        Logger.Debug(Category, "Disposed.");
         _fetcher.Dispose();
     }
 }

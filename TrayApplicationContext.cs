@@ -12,6 +12,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ISignInState _signInState = new SignInState();
     private readonly IOrganizationSettings _organizationSettings = new OrganizationSettings();
     private readonly IGaugeSettings _gaugeSettings = new GaugeSettings();
+    private readonly ILogSettings _logSettings = new LogSettings();
 
     private readonly UsageClient _usageClient;
     private readonly UsagePoller _poller;
@@ -35,9 +36,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         var exitItem = menu.Items.Add("Exit");
 
-        checkNowItem.Click += async (_, _) => { Logger.Log(Category, "Menu: Check now clicked."); await _poller.PollOnceAsync(); };
-        settingsItem.Click += (_, _) => { Logger.Log(Category, "Menu: Settings clicked."); ShowSettings(); };
-        exitItem.Click += (_, _) => { Logger.Log(Category, "Menu: Exit clicked."); ExitApplication(); };
+        checkNowItem.Click += async (_, _) => { Logger.Debug(Category, "Menu: Check now clicked."); await _poller.PollOnceAsync(); };
+        settingsItem.Click += (_, _) => { Logger.Debug(Category, "Menu: Settings clicked."); ShowSettings(); };
+        exitItem.Click += (_, _) => { Logger.Debug(Category, "Menu: Exit clicked."); ExitApplication(); };
 
         _trayIcon = new NotifyIcon
         {
@@ -54,11 +55,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _popup.LoginRequested += (_, _) =>
         {
-            Logger.Log(Category, "Popup login link clicked.");
+            Logger.Debug(Category, "Popup login link clicked.");
             ShowLogin();
         };
 
-        Logger.Log(Category, "TrayApplicationContext constructed, starting poller.");
+        Logger.Debug(Category, "TrayApplicationContext constructed, starting poller.");
         _poller.Start();
     }
 
@@ -67,7 +68,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _lastSnapshot = snapshot;
         _lastError = null;
         bool isAuthenticated = _usageClient.IsAuthenticated;
-        Logger.Log(Category,
+        Logger.Debug(Category,
             $"UsageUpdated: session={snapshot.SessionPercent:0}%, weekly={snapshot.WeeklyPercent:0}%, authenticated={isAuthenticated}");
 
         GaugeThresholds thresholds = _gaugeSettings.Load();
@@ -91,7 +92,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void OnFetchFailed(object? sender, Exception ex)
     {
         _lastError = ex;
-        Logger.Log(Category, $"FetchFailed: {ex.Message}");
+        Logger.Debug(Category, $"FetchFailed: {ex.Message}");
 
         GaugeThresholds thresholds = _gaugeSettings.Load();
         _trayIcon.Icon?.Dispose();
@@ -104,7 +105,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowPopup()
     {
-        Logger.Log(Category, $"Popup opened. lastError={_lastError is not null}, hasSnapshot={_lastSnapshot is not null}");
+        Logger.Debug(Category, $"Popup opened. lastError={_lastError is not null}, hasSnapshot={_lastSnapshot is not null}");
         GaugeThresholds thresholds = _gaugeSettings.Load();
         if (_lastError is { } error)
             _popup.ShowFetchError(error, thresholds);
@@ -115,31 +116,33 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowSettings()
     {
-        Logger.Log(Category, "Opening SettingsForm.");
+        Logger.Debug(Category, "Opening SettingsForm.");
         using var settingsForm = new SettingsForm(
             onLogin: ShowLogin,
             onLogout: LogOut,
             onGaugeDisplay: ShowGaugeSettings,
-            onViewLog: ViewLog);
+            onViewLog: ViewLog,
+            verboseLogging: _logSettings.Verbose,
+            onVerboseLoggingChanged: SetVerboseLogging);
         settingsForm.ShowDialog();
-        Logger.Log(Category, "SettingsForm closed.");
+        Logger.Debug(Category, "SettingsForm closed.");
     }
 
     // owner is null when reached from the popup's login link, which has no window
     // worth parenting to; SettingsForm passes itself.
     private void ShowLogin(IWin32Window? owner = null)
     {
-        Logger.Log(Category, "Opening LoginForm dialog.");
+        Logger.Debug(Category, "Opening LoginForm dialog.");
         using var loginForm = new LoginForm(_signInState, _organizationSettings);
         DialogResult result = loginForm.ShowDialog(owner);
-        Logger.Log(Category, $"LoginForm closed with result={result}.");
+        Logger.Debug(Category, $"LoginForm closed with result={result}.");
         if (result == DialogResult.OK)
             _ = _poller.PollOnceAsync();
     }
 
     private async void LogOut()
     {
-        Logger.Log(Category, "Logging out — clearing sign-in marker, organization id, and browser session.");
+        Logger.Info(Category, "Logging out — clearing sign-in marker, organization id, and browser session.");
         // Everything that can throw stays inside the try: this is async void, so an
         // escaping exception would surface on the ThreadException handler rather
         // than being reported against the logout that caused it.
@@ -156,7 +159,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            Logger.Log(Category, $"Logout failed: {ex}");
+            Logger.Error(Category, $"Logout failed: {ex}");
         }
         _ = _poller.PollOnceAsync();
     }
@@ -165,7 +168,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         using var form = new GaugeSettingsForm(_gaugeSettings.Load());
         DialogResult result = form.ShowDialog(owner);
-        Logger.Log(Category, $"Gauge Display dialog closed with result={result}.");
+        Logger.Debug(Category, $"Gauge Display dialog closed with result={result}.");
         if (result != DialogResult.OK || form.Result is null)
             return;
 
@@ -197,6 +200,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _popup.UpdateSnapshot(snapshot, isAuthenticated, thresholds);
     }
 
+    private void SetVerboseLogging(bool verbose)
+    {
+        // Level first so the change is live even if the marker file can't be written.
+        Logger.MinimumLevel = verbose ? LogLevel.Debug : LogLevel.Info;
+        _logSettings.SetVerbose(verbose);
+        Logger.Info(Category, $"Verbose logging {(verbose ? "enabled" : "disabled")}.");
+    }
+
     private void ViewLog(IWin32Window? owner = null)
     {
         try
@@ -207,7 +218,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            Logger.Log(Category, $"Failed to open log file: {ex}");
+            Logger.Error(Category, $"Failed to open log file: {ex}");
             MessageBox.Show(owner, $"Couldn't open log file: {ex.Message}", "Tokenometer",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
@@ -215,7 +226,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ExitApplication()
     {
-        Logger.Log(Category, "Exiting application.");
+        Logger.Info(Category, "Exiting application.");
         _trayIcon.Visible = false;
         _poller.Dispose();
         _usageClient.Dispose();

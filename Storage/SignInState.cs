@@ -30,7 +30,7 @@ internal sealed class SignInState : ISignInState
     {
         Directory.CreateDirectory(Folder);
         File.WriteAllText(_markerPath, string.Empty);
-        Logger.Log(Category, "Marked signed in.");
+        Logger.Info(Category, "Marked signed in.");
     }
 
     public void Clear()
@@ -38,7 +38,7 @@ internal sealed class SignInState : ISignInState
         if (File.Exists(_markerPath))
         {
             File.Delete(_markerPath);
-            Logger.Log(Category, "Cleared sign-in marker.");
+            Logger.Info(Category, "Cleared sign-in marker.");
         }
     }
 
@@ -59,11 +59,11 @@ internal sealed class SignInState : ISignInState
                 MarkSignedIn();
 
             File.Delete(_legacyCookiePath);
-            Logger.Log(Category, "Deleted legacy session.dat — its contents were never read.");
+            Logger.Info(Category, "Deleted legacy session.dat — its contents were never read.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Logger.Log(Category, $"Couldn't remove legacy session.dat, will retry next start: {ex.Message}");
+            Logger.Warn(Category, $"Couldn't remove legacy session.dat, will retry next start: {ex.Message}");
         }
     }
 }

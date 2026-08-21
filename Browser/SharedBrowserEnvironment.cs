@@ -24,9 +24,9 @@ internal static class SharedBrowserEnvironment
     private static async Task<CoreWebView2Environment> CreateAsync()
     {
         Directory.CreateDirectory(UserDataFolder);
-        Logger.Log("SharedBrowserEnvironment", $"Creating shared WebView2 environment at {UserDataFolder}");
+        Logger.Debug("SharedBrowserEnvironment", $"Creating shared WebView2 environment at {UserDataFolder}");
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(userDataFolder: UserDataFolder);
-        Logger.Log("SharedBrowserEnvironment", $"Environment ready. Runtime version: {environment.BrowserVersionString}");
+        Logger.Info("SharedBrowserEnvironment", $"Environment ready. Runtime version: {environment.BrowserVersionString}");
         return environment;
     }
 }

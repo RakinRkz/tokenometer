@@ -1,5 +1,30 @@
 namespace Tokenometer;
 
+internal enum LogLevel
+{
+    /// <summary>Per-poll mechanics. Off unless verbose logging is switched on.</summary>
+    Debug,
+
+    /// <summary>Things that happen once, or once per user action: startup, login, logout, settings changes.</summary>
+    Info,
+
+    /// <summary>Degraded but recoverable — a setting that wouldn't save, an id that wasn't detected.</summary>
+    Warning,
+
+    /// <summary>A failure the user can see in the tray.</summary>
+    Error,
+}
+
+/// <summary>
+/// Writes to a single rolling file under %AppData%. Everything at
+/// <see cref="MinimumLevel"/> and above is written; the rest is dropped.
+///
+/// The default is Info because a healthy poll used to emit ten lines every three
+/// minutes — around 300 KB a day, 35,000 lines in eleven days — which buried the
+/// failures the log exists to surface. Errors, warnings and lifecycle events are
+/// always recorded, so an installed copy stays diagnosable without anyone having to
+/// turn anything on first; Settings has a checkbox for the per-poll detail.
+/// </summary>
 internal static class Logger
 {
     private const long MaxSizeBytes = 5 * 1024 * 1024;
@@ -15,14 +40,31 @@ internal static class Logger
     private static readonly object WriteLock = new();
 
     /// <summary>
-    /// Never throws. Log is called from Program's unhandled-exception handlers, from
+    /// Lines below this are discarded. Assignable at any time so the Settings
+    /// checkbox takes effect immediately rather than at the next restart.
+    /// </summary>
+    public static volatile LogLevel MinimumLevel = LogLevel.Info;
+
+    public static void Debug(string category, string message) => Write(LogLevel.Debug, category, message);
+
+    public static void Info(string category, string message) => Write(LogLevel.Info, category, message);
+
+    public static void Warn(string category, string message) => Write(LogLevel.Warning, category, message);
+
+    public static void Error(string category, string message) => Write(LogLevel.Error, category, message);
+
+    /// <summary>
+    /// Never throws. Called from Program's unhandled-exception handlers, from
     /// constructors, and from inside catch blocks — so an I/O failure here would
     /// replace the error being reported with a different one, or take down the very
     /// handler meant to record it. Losing a diagnostic line is always the better
     /// outcome. Genuine programming errors are deliberately not swallowed.
     /// </summary>
-    public static void Log(string category, string message)
+    private static void Write(LogLevel level, string category, string message)
     {
+        if (level < MinimumLevel)
+            return;
+
         try
         {
             lock (WriteLock)
@@ -30,7 +72,7 @@ internal static class Logger
                 Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
                 TryRotate();
                 File.AppendAllText(LogFilePath,
-                    $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] [{category}] {message}\r\n");
+                    $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Tag(level)}] [{category}] {message}\r\n");
             }
         }
         catch (Exception ex) when (ex is IOException
@@ -41,6 +83,15 @@ internal static class Logger
             // Nowhere left to report this — the reporting channel is what failed.
         }
     }
+
+    // Padded so the category column lines up when scanning the file by eye.
+    private static string Tag(LogLevel level) => level switch
+    {
+        LogLevel.Debug => "DEBUG",
+        LogLevel.Info => "INFO ",
+        LogLevel.Warning => "WARN ",
+        _ => "ERROR",
+    };
 
     /// <summary>
     /// Swallows its own failures separately so a log that can't be rotated (the old

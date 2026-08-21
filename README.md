@@ -60,6 +60,7 @@ Until you log in, the app shows mock/random data so you can see what the gauges 
 | Log out | Clears the sign-in marker, the embedded browser's own cookies, and the auto-detected organization id |
 | Gauge Display... | Change the amber/red usage thresholds (default 70% / 90%), and toggle showing remaining instead of used |
 | View log... | Opens the log file for troubleshooting |
+| Verbose logging | Records every poll, not just errors. Off by default; turn it on before reproducing a problem, then off again |
 
 ## Where your data lives
 
@@ -71,6 +72,7 @@ Everything is stored under `%AppData%\Tokenometer\`:
 | `organization-id.txt` | The organization id, auto-detected during login (not a secret) |
 | `gauge-settings.json` | Your color threshold and gauge-direction preferences |
 | `log.txt` / `log.old.txt` | Diagnostic logs (rotated at 5MB), never contains the cookie value itself |
+| `verbose-logging.marker` | Present only while verbose logging is switched on |
 | `WebView2\` | The embedded browser's profile (cookies, cache) |
 
 Uninstalling the app does **not** delete this folder, so reinstalling picks up right where you left off. Delete it manually if you want a clean slate.
@@ -111,7 +113,9 @@ Note that `installer.iss` reads the version out of `publish\Tokenometer.exe`, so
 
 ## Troubleshooting
 
-Start with **View log...** in the tray menu — it logs every fetch attempt, HTTP status, and timing. Common issues:
+Start with **View log...** in the tray menu. By default it records startup, logins, logouts and anything that failed — a healthy poll writes nothing, so whatever is in there is worth reading. If you need the full picture, tick **Verbose logging** in Settings, reproduce the problem, then untick it: that adds a line for every fetch attempt, HTTP status and timing. Either way the file rotates at 5MB.
+
+Common issues:
 
 - **"Organization ID not set"** — auto-detection didn't run yet or failed; log out and back in via Settings to retry it.
 - **HTTP error / Cloudflare challenge page in the log** — claude.ai's private endpoint or protection may have changed; this project may need updating.
