@@ -18,12 +18,23 @@ internal sealed class LoginForm : Form
     private const string SessionCookieName = "sessionKey";
     private const string ActiveOrganizationCookieName = "lastActiveOrg";
 
+    /// <summary>
+    /// How many extra 1s polls to allow after sessionKey appears, waiting for the
+    /// organization cookie. sessionKey is set the instant authentication succeeds,
+    /// but lastActiveOrg only lands once claude.ai redirects into the organization —
+    /// a second or two later. Closing on first sight of sessionKey therefore missed
+    /// it on a genuinely fresh profile every time. A returning user's profile already
+    /// had the cookie, which is why this only ever bit first-time logins.
+    /// </summary>
+    private const int MaxOrganizationWaitTicks = 20;
+
     private readonly ISignInState _signInState;
     private readonly IOrganizationSettings _organizationSettings;
     private readonly WebView2 _webView = new();
     private readonly System.Windows.Forms.Timer _cookiePollTimer = new() { Interval = 1000 };
     private int _pollTickCount;
     private bool _captured;
+    private int _ticksWaitingForOrganization = -1;
 
     public LoginForm(ISignInState signInState, IOrganizationSettings organizationSettings)
     {
@@ -101,26 +112,47 @@ internal sealed class LoginForm : Form
         if (!BrowserCookies.Contains(cookies, SessionCookieName))
             return;
 
+        // claude.ai sets this to the active organization's id during login — used
+        // instead of requiring a manual DevTools lookup.
+        string? organizationId = BrowserCookies.FindValue(cookies, ActiveOrganizationCookieName);
+
+        // Don't close the moment sessionKey shows up: the organization cookie trails
+        // it by a second or two, and leaving without it strands the user with no
+        // usage URL and no way to set one by hand. Keep polling for a bounded window.
+        if (organizationId is null)
+        {
+            _ticksWaitingForOrganization++;
+            if (_ticksWaitingForOrganization == 0)
+            {
+                Logger.Log("LoginForm",
+                    $"{SessionCookieName} found after {_pollTickCount} polls; waiting up to " +
+                    $"{MaxOrganizationWaitTicks}s for {ActiveOrganizationCookieName}.");
+            }
+
+            if (_ticksWaitingForOrganization < MaxOrganizationWaitTicks)
+                return;
+        }
+
         Logger.Log("LoginForm",
-            $"{SessionCookieName} found after {_pollTickCount} polls — {cookies.Count} cookies present: " +
+            $"Capturing after {_pollTickCount} polls — {cookies.Count} cookies present: " +
             string.Join(",", cookies.Select(c => c.Name)));
 
         _cookiePollTimer.Stop();
         _captured = true;
         _signInState.MarkSignedIn();
 
-        // claude.ai sets this to the active organization's id during login — use it
-        // instead of requiring a manual DevTools lookup. Falls back to whatever's
-        // already stored (or unset) if the cookie is ever renamed or missing.
-        string? organizationId = BrowserCookies.FindValue(cookies, ActiveOrganizationCookieName);
         if (organizationId is not null)
         {
             _organizationSettings.Save(organizationId);
-            Logger.Log("LoginForm", $"Auto-detected organization id from {ActiveOrganizationCookieName} cookie: {organizationId}");
+            Logger.Log("LoginForm",
+                $"Auto-detected organization id from {ActiveOrganizationCookieName} cookie " +
+                $"after {Math.Max(_ticksWaitingForOrganization, 0)}s: {organizationId}");
         }
         else
         {
-            Logger.Log("LoginForm", $"No {ActiveOrganizationCookieName} cookie found — organization id not auto-detected.");
+            Logger.Log("LoginForm",
+                $"No {ActiveOrganizationCookieName} cookie after waiting {MaxOrganizationWaitTicks}s — " +
+                "organization id not auto-detected.");
         }
 
         DialogResult = DialogResult.OK;

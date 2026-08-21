@@ -38,6 +38,8 @@ Requires the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotn
 1. Right-click the tray icon → **Settings...** → **Log in to claude.ai...** and sign in through the embedded window. It closes automatically once your session is captured — your organization id is captured at the same time (from claude.ai's own `lastActiveOrg` cookie), no DevTools required.
 2. That's it — the gauges start updating (polling every 3 minutes by default).
 
+The login window may sit open for a few seconds after you sign in: `sessionKey` arrives the moment you authenticate, but the `lastActiveOrg` cookie the organization id comes from only lands once claude.ai redirects into your organization. It waits up to 20s for that, then closes.
+
 There's no manual override for the organization id — if claude.ai ever renames the `lastActiveOrg` cookie and auto-detection breaks, logging out and back in is the way to retry it (see Troubleshooting below).
 
 Until you log in, the app shows mock/random data so you can see what the gauges look like.
